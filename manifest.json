@@ -1,0 +1,10 @@
+{
+  "id": "wechat-markdown-note",
+  "name": "WeChat Preview",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Preview the current note with WeChat-styled HTML and copy to the WeChat editor.",
+  "author": "wechat-markdown-note contributors",
+  "isDesktopOnly": true
+}
+
