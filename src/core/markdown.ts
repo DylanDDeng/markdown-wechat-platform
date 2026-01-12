@@ -182,8 +182,20 @@ function parseCalloutHeader(line: string) {
 }
 
 export function parseMarkdown(markdown: string): BlockNode[] {
-  const normalized = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  const lines = normalized.split('\n')
+  const normalized = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^\uFEFF/, '')
+  let lines = normalized.split('\n')
+  // Strip YAML frontmatter (Obsidian properties) from the start of the doc.
+  let startIndex = 0
+  while (startIndex < lines.length && lines[startIndex]?.trim() === '') startIndex += 1
+  if (lines[startIndex]?.trim() === '---') {
+    for (let i = startIndex + 1; i < lines.length; i += 1) {
+      const trimmed = (lines[i] ?? '').trim()
+      if (trimmed === '---' || trimmed === '...') {
+        lines = lines.slice(i + 1)
+        break
+      }
+    }
+  }
   const blocks: BlockNode[] = []
 
   let index = 0
@@ -285,4 +297,3 @@ export function parseMarkdown(markdown: string): BlockNode[] {
 
   return blocks
 }
-
