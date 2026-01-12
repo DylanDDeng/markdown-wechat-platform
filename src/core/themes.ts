@@ -29,7 +29,7 @@ export const themes: ThemeTokens[] = [
     font: {
       family: '"Helvetica Neue", Arial, "PingFang SC", sans-serif',
       size: '15px',
-      lineHeight: '1.8',
+      lineHeight: '2',
     },
     heading: { h1: '20px', h2: '18px', h3: '16px' },
     color: {
@@ -47,4 +47,3 @@ export const themes: ThemeTokens[] = [
 export function getThemeByName(name: string | undefined): ThemeTokens {
   return themes.find((t) => t.name === name) ?? themes[0]
 }
-

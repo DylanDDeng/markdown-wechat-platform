@@ -104,7 +104,7 @@ function wechatSafeTextStyle(theme: ThemeTokens) {
     `color:${theme.color.text}`,
     'word-break:break-word',
   ]
-  if (theme.name === 'klein') parts.push('letter-spacing:0.5px')
+  if (theme.name === 'klein') parts.push('letter-spacing:2px')
   return parts.join(';')
 }
 
@@ -135,7 +135,7 @@ function swissKleinRootStyle(theme: ThemeTokens) {
     `color:${theme.color.text}`,
     `font-size:${theme.font.size}`,
     `line-height:${theme.font.lineHeight}`,
-    'letter-spacing:0.5px',
+    'letter-spacing:2px',
     'padding:20px 15px',
   ].join(';')
 }
@@ -297,7 +297,7 @@ function renderSwissKleinCallout(
     'padding:4px 10px',
     'font-size:12px',
     'font-weight:700',
-    'letter-spacing:1px',
+    'letter-spacing:2px',
     'margin-bottom:10px',
   ].join(';')
 
@@ -318,11 +318,11 @@ function renderSwissKleinWeChatBlock(
   tight = false,
 ): string {
   const bodyLeafStyle = wechatSafeTextStyle(theme)
-  const paraMargin = tight ? '0 0 8px' : '0 0 12px'
+  const paraMargin = tight ? '0 0 16px' : '0 0 16px'
 
   switch (block.type) {
     case 'blank':
-      return '<section><span leaf=""><br></span></section>'
+      return '<section style="height:6px;line-height:6px;"></section>'
     case 'hr': {
       const style = tight ? 'margin:12px 0;' : 'margin:20px 0;'
       return `<section style="${style}"><span leaf="" style="display:block;border-top:1px solid ${theme.color.border};height:0;"></span></section>`
@@ -404,7 +404,7 @@ function renderSwissKleinWeChatBlock(
       const leafStyle = [
         `font-size:${theme.font.size}`,
         `line-height:${theme.font.lineHeight}`,
-        'letter-spacing:0.5px',
+        'letter-spacing:2px',
         `color:${theme.color.link}`,
         'font-weight:bold',
       ].join(';')
@@ -437,4 +437,3 @@ export function renderWeChatHtml(
     '<p style="display: none;"><mp-style-type data-value="3"></mp-style-type></p>'
   return `${renderSwissKleinWeChatHtml(blocks, theme, options)}${mpStyleType}`
 }
-
