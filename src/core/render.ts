@@ -258,34 +258,46 @@ function renderSwissKleinChapterHeading(
     const containerStyle = [
       'margin-top:60px',
       'margin-bottom:30px',
-      'display:flex',
-      'align-items:baseline',
+      'text-align:center',
     ].join(';')
-    const numberStyle = [
-      'font-size:60px',
-      'font-weight:900',
+    // 上方装饰线
+    const topDecoStyle = [
+      'display:block',
       `color:${theme.color.link}`,
-      'line-height:0.8',
-      'margin-right:15px',
+      'font-size:14px',
+      'letter-spacing:4px',
+      'margin-bottom:12px',
     ].join(';')
-    const titleWrapStyle = [
-      `border-left:4px solid ${theme.color.link}`,
-      'padding-left:12px',
-      'display:inline-block',
+    // 章节数字
+    const numberStyle = [
+      'display:block',
+      'font-size:48px',
+      'font-weight:300',
+      `color:${theme.color.link}`,
+      'line-height:1',
+      'margin-bottom:8px',
     ].join(';')
+    // 标题文字
     const titleTextStyle = [
-      `font-size:${theme.heading.h2}`,
-      'font-weight:900',
-      `color:${theme.color.text}`,
       'display:inline-block',
-      'padding-bottom:4px',
-      `border-bottom:3px solid ${theme.color.link}`,
+      `font-size:20px`,
+      'font-weight:700',
+      `color:${theme.color.text}`,
+      'letter-spacing:6px',
     ].join(';')
-    return `<section style="${containerStyle}"><span leaf="" style="${numberStyle}">${escapeHtml(
+    // 下方装饰线
+    const bottomDecoStyle = [
+      'display:block',
+      `color:${theme.color.border}`,
+      'font-size:14px',
+      'letter-spacing:2px',
+      'margin-top:12px',
+    ].join(';')
+    return `<section style="${containerStyle}"><span leaf="" style="${topDecoStyle}">━━━━ ◆ ━━━━</span><span leaf="" style="${numberStyle}">${escapeHtml(
       formatSwissKleinChapterNumber(chapterIndex),
-    )}</span><span leaf="" style="${titleWrapStyle}"><span leaf="" style="${titleTextStyle}">${escapeHtml(
+    )}</span><span leaf="" style="${titleTextStyle}">${escapeHtml(
       formatSwissKleinChapterTitle(title),
-    )}</span></span></section>`
+    )}</span><span leaf="" style="${bottomDecoStyle}">◇ ─────── ◇</span></section>`
   }
 
   const titleColor = theme.name === 'chinese' ? theme.color.text : '#000'
@@ -346,27 +358,53 @@ function renderWeChatInlines(
           )}</span>`
         case 'strong': {
           const accent = colorToCssRgb(theme.color.link)
+          if (theme.name === 'chinese') {
+            // 中国风：底部红色渐变下划线效果
+            const parts = [
+              `color:${colorToCssRgb(theme.color.text)}`,
+              'font-weight:700',
+              `background:linear-gradient(to bottom, transparent 60%, ${colorToCssRgba(theme.color.link, 0.25)} 60%)`,
+              'padding:0 3px',
+            ]
+            return `<span style="${parts.join(';')}">${renderWeChatInlines(
+              n.children,
+              theme,
+              firstCharMark,
+            )}</span>`
+          }
           const parts = [
-            `color:${theme.name === 'chinese' ? colorToCssRgb(theme.color.text) : accent}`,
+            `color:${accent}`,
             'font-weight:bold',
           ]
-          if (theme.name === 'chinese') {
-            parts.push(`background-color:${colorToCssRgba(theme.color.link, 0.16)}`)
-            parts.push('padding:0 2px')
-            parts.push('border-radius:2px')
-          }
           return `<span style="${parts.join(';')}">${renderWeChatInlines(
             n.children,
             theme,
             firstCharMark,
           )}</span>`
         }
-        case 'em':
+        case 'em': {
+          if (theme.name === 'chinese') {
+            // 中国风：取消斜体，改用红色点状下划线
+            const parts = [
+              `font-size:${theme.font.size}`,
+              'font-style:normal',
+              'text-decoration:underline',
+              'text-decoration-style:dotted',
+              `text-decoration-color:${theme.color.link}`,
+              'text-underline-offset:3px',
+            ]
+            return `<span leaf="" style="${parts.join(';')}">${renderWeChatInlines(
+              n.children,
+              theme,
+              firstCharMark,
+            )}</span>`
+          }
           return `<span leaf="" style="font-size:${theme.font.size};font-style:italic;">${renderWeChatInlines(
             n.children,
             theme,
             firstCharMark,
           )}</span>`
+        }
         case 'underline':
           return `<span leaf="" style="${kleinUnderlineStyle(theme)}">${renderWeChatInlines(
             n.children,
@@ -438,6 +476,19 @@ function renderSwissKleinWeChatBlock(
     case 'blank':
       return '<section style="height:6px;line-height:6px;"></section>'
     case 'hr': {
+      if (theme.name === 'chinese') {
+        const containerStyle = [
+          tight ? 'margin:20px auto' : 'margin:40px auto',
+          'text-align:center',
+          'width:80%',
+        ].join(';')
+        const decoStyle = [
+          `color:${theme.color.link}`,
+          'font-size:14px',
+          'letter-spacing:2px',
+        ].join(';')
+        return `<section style="${containerStyle}"><span leaf="" style="${decoStyle}">───────── ◆ ─────────</span></section>`
+      }
       const style = tight ? 'margin:12px 0;' : 'margin:20px 0;'
       return `<section style="${style}"><span leaf="" style="display:block;border-top:1px solid ${theme.color.border};height:0;"></span></section>`
     }
@@ -449,10 +500,69 @@ function renderSwissKleinWeChatBlock(
       }
 
       const depth = Math.min(6, Math.max(1, block.depth))
+      const headingColor = theme.name === 'chinese' ? theme.color.text : '#000'
+
+      // H1 主标题 - 中国风居中装饰
+      if (depth === 1 && theme.name === 'chinese') {
+        const containerStyle = [
+          'margin:50px 0 24px',
+          'text-align:center',
+        ].join(';')
+        const topDecoStyle = [
+          'display:block',
+          `color:${theme.color.link}`,
+          'font-size:12px',
+          'letter-spacing:3px',
+          'margin-bottom:16px',
+        ].join(';')
+        const titleStyle = [
+          `font-size:${theme.heading.h1}`,
+          'font-weight:700',
+          `color:${headingColor}`,
+          'letter-spacing:8px',
+        ].join(';')
+        const bottomDecoStyle = [
+          'display:block',
+          'width:60px',
+          `border-bottom:3px double ${theme.color.link}`,
+          'margin:12px auto 0',
+        ].join(';')
+        return `<section style="${containerStyle}"><span leaf="" style="${topDecoStyle}">────── ✦ ──────</span><span leaf="" style="${titleStyle}">${renderWeChatInlines(
+          block.children,
+          theme,
+        )}</span><span leaf="" style="${bottomDecoStyle}"></span></section>`
+      }
+
+      // H3 小标题 - 中国风左侧菱形装饰
+      if (depth === 3 && theme.name === 'chinese') {
+        const containerStyle = [
+          'margin:28px 0 14px',
+          'display:flex',
+          'align-items:center',
+        ].join(';')
+        const decoStyle = [
+          `color:${theme.color.link}`,
+          'font-size:10px',
+          'margin-right:10px',
+        ].join(';')
+        const titleStyle = [
+          `font-size:${theme.heading.h3}`,
+          'font-weight:600',
+          `color:${headingColor}`,
+          'letter-spacing:3px',
+          `border-bottom:1px solid ${theme.color.border}`,
+          'padding-bottom:4px',
+        ].join(';')
+        return `<section style="${containerStyle}"><span leaf="" style="${decoStyle}">◆</span><span leaf="" style="${titleStyle}">${renderWeChatInlines(
+          block.children,
+          theme,
+        )}</span></section>`
+      }
+
+      // 其他标题的默认样式
       const size = depth === 1 ? theme.heading.h1 : depth === 3 ? theme.heading.h3 : theme.heading.h2
       const margin = depth === 1 ? '40px 0 18px' : depth === 3 ? '24px 0 12px' : '30px 0 14px'
       const weight = depth === 1 ? '900' : '800'
-      const headingColor = theme.name === 'chinese' ? theme.color.text : '#000'
       const headingSectionStyle =
         theme.name === 'chinese'
           ? `margin:${margin};padding-left:12px;border-left:4px solid ${theme.color.link};`
@@ -520,7 +630,14 @@ function renderSwissKleinWeChatBlock(
       ].join(';')
       return block.items
         .map((it, idx) => {
-          const prefix = block.ordered ? `${idx + 1}. ` : '• '
+          // 中国风主题使用菱形符号
+          const bulletChar = theme.name === 'chinese' ? '◆ ' : '• '
+          const prefix = block.ordered ? `${idx + 1}. ` : bulletChar
+          // 为中国风主题的列表符号添加颜色
+          if (theme.name === 'chinese' && !block.ordered) {
+            const bulletStyle = `color:${theme.color.link};font-size:10px;`
+            return `<section style="${itemStyle}"><span leaf="" style="${bodyLeafStyle}"><span style="${bulletStyle}">◆</span> ${renderWeChatInlines(it, theme)}</span></section>`
+          }
           return `<section style="${itemStyle}"><span leaf="" style="${bodyLeafStyle}">${escapeHtml(
             prefix,
           )}${renderWeChatInlines(it, theme)}</span></section>`
@@ -531,18 +648,31 @@ function renderSwissKleinWeChatBlock(
       const text = blocksPlainText(block.children)
       const html = escapeHtml(text).replace(/\n/g, '<br>')
       if (theme.name === 'chinese') {
-        const style = [
-          `border-left:4px solid ${theme.color.link}`,
-          'padding:16px 18px',
+        const containerStyle = [
+          `border-left:3px solid ${theme.color.link}`,
+          `border-right:1px solid ${theme.color.border}`,
+          'padding:24px 28px',
           `font-size:${theme.font.size}`,
-          'margin:30px 0',
-          `background:${theme.color.quoteBg}`,
+          'margin:35px 0',
+          'background:linear-gradient(to right, #fdf8f1, #f8f3e8)',
+          'position:relative',
         ].join(';')
-        const deco = [
+        // 左上角「装饰
+        const leftQuoteStyle = [
           'display:block',
-          'width:36px',
-          `border-top:2px solid ${theme.color.link}`,
-          'margin:0 0 10px',
+          'font-size:28px',
+          `color:${colorToCssRgba(theme.color.link, 0.7)}`,
+          'line-height:1',
+          'margin-bottom:8px',
+        ].join(';')
+        // 右下角」装饰
+        const rightQuoteStyle = [
+          'display:block',
+          'font-size:28px',
+          `color:${colorToCssRgba(theme.color.link, 0.7)}`,
+          'line-height:1',
+          'text-align:right',
+          'margin-top:8px',
         ].join(';')
         const leafStyle = [
           `font-size:${theme.font.size}`,
@@ -551,7 +681,7 @@ function renderSwissKleinWeChatBlock(
           `color:${theme.color.text}`,
           'font-weight:500',
         ].join(';')
-        return `<section style="${style}"><span leaf="" style="${deco}"></span><span leaf="" style="${leafStyle}">${html}</span></section>`
+        return `<section style="${containerStyle}"><span leaf="" style="${leftQuoteStyle}">「</span><span leaf="" style="${leafStyle}">${html}</span><span leaf="" style="${rightQuoteStyle}">」</span></section>`
       }
       const style = [
         `border:2px solid ${theme.color.link}`,
