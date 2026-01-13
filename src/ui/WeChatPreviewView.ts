@@ -9,7 +9,7 @@ import { parseMarkdown, stripFrontmatter } from '../core/markdown'
 import { getThemeByName, themes } from '../core/themes'
 import { renderWeChatHtml } from '../core/render'
 import { buildWeChatPreviewSrcDoc } from '../core/preview'
-import { copyText } from '../core/clipboard'
+import { copyRichHtml, copyText } from '../core/clipboard'
 
 export const VIEW_TYPE_WECHAT_PREVIEW = 'wechat-preview-view'
 
@@ -93,6 +93,9 @@ export class WeChatPreviewView extends ItemView {
     }
 
     const btnWrap = toolbar.createDiv()
+    const copyRenderedBtn = btnWrap.createEl('button', { text: 'Copy Rendered' })
+    copyRenderedBtn.onclick = () => this.handleCopyRendered()
+
     const copyHtmlBtn = btnWrap.createEl('button', { text: 'Copy HTML' })
     copyHtmlBtn.onclick = () => this.handleCopyHtml()
 
@@ -206,6 +209,20 @@ export class WeChatPreviewView extends ItemView {
     try {
       await copyText(this.lastHtml)
       this.setStatus('Copied HTML')
+    } catch (err) {
+      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  private async handleCopyRendered() {
+    if (!this.lastHtml) {
+      this.setStatus('Nothing to copy')
+      return
+    }
+    this.setStatus('Copying…')
+    try {
+      await copyRichHtml(this.lastHtml)
+      this.setStatus('Copied rendered content (paste into WeChat editor)')
     } catch (err) {
       this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
     }

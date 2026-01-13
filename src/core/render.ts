@@ -130,8 +130,9 @@ function kleinHardShadowImageStyle(theme: ThemeTokens) {
 }
 
 function swissKleinRootStyle(theme: ThemeTokens) {
+  const paperColor = theme.name === 'chinese' ? '#fbf7ef' : '#ffffff'
   return [
-    'background-color:#ffffff',
+    `background-color:${paperColor}`,
     `color:${theme.color.text}`,
     `font-size:${theme.font.size}`,
     `line-height:${theme.font.lineHeight}`,
@@ -171,19 +172,22 @@ function renderSwissKleinMetaHeader(theme: ThemeTokens, metaText: string) {
     'font-size:12px',
     'font-weight:700',
     'letter-spacing:2px',
+    ...(theme.name === 'chinese'
+      ? [`border:1px solid ${theme.color.border}`, `box-shadow:2px 2px 0 ${theme.color.border}`]
+      : []),
   ].join(';')
   return `<section style="text-align:center;"><span leaf="" style="${spanStyle}">${escapeHtml(
     metaText,
   )}</span></section>`
 }
 
-function renderSwissKleinFooter(footerText: string) {
+function renderSwissKleinFooter(theme: ThemeTokens, footerText: string) {
   const footerStyle = [
     'margin-top:80px',
-    'border-top:1px solid #e0e0e0',
+    `border-top:1px solid ${theme.color.border}`,
     'padding-top:40px',
     'text-align:center',
-    'color:#888',
+    `color:${theme.color.muted}`,
     'font-size:14px',
   ].join(';')
   const badgeStyle = [
@@ -205,6 +209,8 @@ function renderSwissKleinChapterHeading(
   chapterIndex: number,
   title: string,
 ) {
+  const titleColor = theme.name === 'chinese' ? theme.color.text : '#000'
+  const underlineColor = theme.name === 'chinese' ? theme.color.link : '#000'
   const containerStyle = [
     'margin-top:60px',
     'margin-bottom:30px',
@@ -221,10 +227,10 @@ function renderSwissKleinChapterHeading(
   const titleStyle = [
     `font-size:${theme.heading.h2}`,
     'font-weight:bold',
-    'color:#000',
+    `color:${titleColor}`,
     'display:inline-block',
     'padding-bottom:6px',
-    'border-bottom:4px solid #000',
+    `border-bottom:4px solid ${underlineColor}`,
   ].join(';')
   return `<section style="${containerStyle}"><span leaf="" style="${numberStyle}">${escapeHtml(
     formatSwissKleinChapterNumber(chapterIndex),
@@ -287,7 +293,7 @@ function renderSwissKleinCallout(
     `border:2px solid ${theme.color.link}`,
     'padding:16px 16px',
     'margin:20px 0',
-    'background:#fff',
+    `background:${theme.color.quoteBg}`,
   ].join(';')
   const titleText =
     callout.title?.trim().length ? callout.title.trim() : callout.kind.toUpperCase()
@@ -339,7 +345,8 @@ function renderSwissKleinWeChatBlock(
       const size = depth === 1 ? theme.heading.h1 : depth === 3 ? theme.heading.h3 : theme.heading.h2
       const margin = depth === 1 ? '40px 0 18px' : depth === 3 ? '24px 0 12px' : '30px 0 14px'
       const weight = depth === 1 ? '900' : '800'
-      return `<section style="margin:${margin};"><span leaf="" style="font-size:${size};font-weight:${weight};color:#000;">${renderWeChatInlines(
+      const headingColor = theme.name === 'chinese' ? theme.color.text : '#000'
+      return `<section style="margin:${margin};"><span leaf="" style="font-size:${size};font-weight:${weight};color:${headingColor};">${renderWeChatInlines(
         block.children,
         theme,
       )}</span></section>`
@@ -400,7 +407,7 @@ function renderSwissKleinWeChatBlock(
         'font-weight:bold',
         `font-size:${theme.font.size}`,
         'margin:30px 0',
-        'background:#fff',
+        `background:${theme.color.quoteBg}`,
       ].join(';')
       const leafStyle = [
         `font-size:${theme.font.size}`,
@@ -425,7 +432,7 @@ function renderSwissKleinWeChatHtml(
   const ctx = { chapterIndex: 0 }
   const meta = renderSwissKleinMetaHeader(theme, options.metaText)
   const body = blocks.map((b) => renderSwissKleinWeChatBlock(b, theme, ctx)).join('')
-  const footer = renderSwissKleinFooter(options.footerText)
+  const footer = renderSwissKleinFooter(theme, options.footerText)
   return `<section id="${SWISS_KLEIN_ROOT_ID}" style="${rootStyle}">${meta}${body}${footer}</section>`
 }
 

@@ -42,6 +42,25 @@ export const themes: ThemeTokens[] = [
     },
     radius: '2px',
   },
+  {
+    name: 'chinese',
+    label: 'Chinese Ink',
+    font: {
+      family: '"Helvetica Neue", Arial, "PingFang SC", sans-serif',
+      size: '15px',
+      lineHeight: '2',
+    },
+    heading: { h1: '20px', h2: '18px', h3: '16px' },
+    color: {
+      text: '#2b241e',
+      muted: '#7a6a5a',
+      link: '#b0302b',
+      border: '#d9c7b5',
+      codeBg: '#f3eee6',
+      quoteBg: '#fdf8f1',
+    },
+    radius: '2px',
+  },
 ]
 
 export function getThemeByName(name: string | undefined): ThemeTokens {
