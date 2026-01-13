@@ -172,7 +172,7 @@ function renderSwissKleinMetaHeader(theme: ThemeTokens, metaText: string) {
     'font-weight:700',
     'letter-spacing:2px',
   ].join(';')
-  return `<section style="text-align:left;"><span leaf="" style="${spanStyle}">${escapeHtml(
+  return `<section style="text-align:center;"><span leaf="" style="${spanStyle}">${escapeHtml(
     metaText,
   )}</span></section>`
 }
@@ -206,10 +206,8 @@ function renderSwissKleinChapterHeading(
   title: string,
 ) {
   const containerStyle = [
-    'border-bottom:4px solid #000',
     'margin-top:60px',
     'margin-bottom:30px',
-    'padding-bottom:10px',
     'display:flex',
     'align-items:baseline',
   ].join(';')
@@ -224,6 +222,9 @@ function renderSwissKleinChapterHeading(
     `font-size:${theme.heading.h2}`,
     'font-weight:bold',
     'color:#000',
+    'display:inline-block',
+    'padding-bottom:6px',
+    'border-bottom:4px solid #000',
   ].join(';')
   return `<section style="${containerStyle}"><span leaf="" style="${numberStyle}">${escapeHtml(
     formatSwissKleinChapterNumber(chapterIndex),

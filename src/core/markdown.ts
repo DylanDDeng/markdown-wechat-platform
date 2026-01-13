@@ -181,10 +181,9 @@ function parseCalloutHeader(line: string) {
   return { kind, title: rawTitle.length ? rawTitle : undefined }
 }
 
-export function parseMarkdown(markdown: string): BlockNode[] {
+export function stripFrontmatter(markdown: string): string {
   const normalized = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^\uFEFF/, '')
   let lines = normalized.split('\n')
-  // Strip YAML frontmatter (Obsidian properties) from the start of the doc.
   let startIndex = 0
   while (startIndex < lines.length && lines[startIndex]?.trim() === '') startIndex += 1
   if (lines[startIndex]?.trim() === '---') {
@@ -196,6 +195,12 @@ export function parseMarkdown(markdown: string): BlockNode[] {
       }
     }
   }
+  return lines.join('\n')
+}
+
+export function parseMarkdown(markdown: string): BlockNode[] {
+  const normalized = stripFrontmatter(markdown)
+  const lines = normalized.split('\n')
   const blocks: BlockNode[] = []
 
   let index = 0

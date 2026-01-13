@@ -5,13 +5,43 @@ import {
   setIcon,
 } from 'obsidian'
 import type WeChatPreviewPlugin from '../main'
-import { parseMarkdown } from '../core/markdown'
+import { parseMarkdown, stripFrontmatter } from '../core/markdown'
 import { getThemeByName, themes } from '../core/themes'
 import { renderWeChatHtml } from '../core/render'
 import { buildWeChatPreviewSrcDoc } from '../core/preview'
-import { copyRichHtml, copyText } from '../core/clipboard'
+import { copyText } from '../core/clipboard'
 
 export const VIEW_TYPE_WECHAT_PREVIEW = 'wechat-preview-view'
+
+function extractSwissKleinMeta(markdown: string): { metaText: string | null; cleanedMarkdown: string } {
+  const source = stripFrontmatter(markdown)
+  const lines = source.split('\n')
+  const pattern =
+    /\u8fd9\u662f\s*Bubble\s*(\d{4})\s*\u5e74\u7684\u7b2c\s*(\d+)\s*\u7bc7\u66f4\u65b0/i
+  let metaText: string | null = null
+  const cleanedLines: string[] = []
+
+  for (const line of lines) {
+    const match = pattern.exec(line)
+    if (!match) {
+      cleanedLines.push(line)
+      continue
+    }
+
+    if (!metaText) {
+      const year = match[1] ?? ''
+      const updateNumber = Number.parseInt(match[2] ?? '', 10)
+      if (Number.isFinite(updateNumber)) {
+        metaText = `BUBBLE ${year} UPDATE ${String(updateNumber).padStart(2, '0')}`
+      }
+    }
+
+    const trimmed = line.replace(pattern, '').trim()
+    if (trimmed.length) cleanedLines.push(trimmed)
+  }
+
+  return { metaText, cleanedMarkdown: cleanedLines.join('\n') }
+}
 
 export class WeChatPreviewView extends ItemView {
   private plugin: WeChatPreviewPlugin
@@ -63,9 +93,6 @@ export class WeChatPreviewView extends ItemView {
     }
 
     const btnWrap = toolbar.createDiv()
-    const copyRichBtn = btnWrap.createEl('button', { text: 'Copy (Rich)' })
-    copyRichBtn.onclick = () => this.handleCopyRich()
-
     const copyHtmlBtn = btnWrap.createEl('button', { text: 'Copy HTML' })
     copyHtmlBtn.onclick = () => this.handleCopyHtml()
 
@@ -132,7 +159,8 @@ export class WeChatPreviewView extends ItemView {
     }
 
     const themeName = this.plugin.settings.themeName
-    const metaText = this.plugin.settings.metaText
+    const { metaText: derivedMetaText, cleanedMarkdown } = extractSwissKleinMeta(source.markdown)
+    const metaText = derivedMetaText ?? this.plugin.settings.metaText
     const footerText = this.plugin.settings.footerText
 
     if (
@@ -151,7 +179,7 @@ export class WeChatPreviewView extends ItemView {
     this.lastFooterText = footerText
 
     const theme = getThemeByName(themeName)
-    const blocks = parseMarkdown(source.markdown)
+    const blocks = parseMarkdown(cleanedMarkdown)
     const html = renderWeChatHtml(blocks, theme, { metaText, footerText })
     this.lastHtml = html
 
@@ -167,20 +195,6 @@ export class WeChatPreviewView extends ItemView {
     if (!this.statusEl) return
     this.statusEl.textContent = text
     this.statusEl.setAttribute('title', text)
-  }
-
-  private async handleCopyRich() {
-    if (!this.lastHtml) {
-      this.setStatus('Nothing to copy')
-      return
-    }
-    this.setStatus('Copying…')
-    try {
-      await copyRichHtml(this.lastHtml)
-      this.setStatus('Copied rich HTML (paste into WeChat editor)')
-    } catch (err) {
-      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
   }
 
   private async handleCopyHtml() {
