@@ -577,23 +577,15 @@ function renderSwissKleinWeChatBlock(
       if (onlyImage) return renderWeChatInlines([onlyImage], theme)
       const sectionStyle = `${bodyLeafStyle};margin:${paraMargin};`
       if (theme.name === 'chinese' && !tight && !ctx.firstParagraphDone) {
-        const dotStyle = [
-          'display:inline-block',
-          `background:${theme.color.link}`,
-          'width:7px',
-          'height:7px',
-          'border-radius:50%',
-          'margin-right:8px',
-          'vertical-align:middle',
-        ].join(';')
+        // 首字：变红 + 放大，不加粗，无圆点
         const firstCharStyle = [
           `color:${colorToCssRgb(theme.color.link)}`,
-          'font-weight:900',
+          'font-size:1.3em',
         ].join(';')
         const state = { done: false, style: firstCharStyle }
         const inner = renderWeChatInlines(block.children, theme, state)
         ctx.firstParagraphDone = true
-        return `<section style="${sectionStyle}"><span leaf="" style="${bodyLeafStyle}"><span style="${dotStyle}"></span>${inner}</span></section>`
+        return `<section style="${sectionStyle}"><span leaf="" style="${bodyLeafStyle}">${inner}</span></section>`
       }
       return `<section style="${sectionStyle}"><span leaf="" style="${bodyLeafStyle}">${renderWeChatInlines(
         block.children,
