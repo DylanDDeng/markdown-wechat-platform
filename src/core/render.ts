@@ -26,21 +26,49 @@ function safeUrl(url: string) {
   return '#'
 }
 
-function colorToCssRgb(color: string): string {
+function hexToRgbParts(color: string): { r: number; g: number; b: number } | null {
   const trimmed = color.trim()
   const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed)
-  if (!match) return trimmed
+  if (!match) return null
   const hex = match[1]?.toLowerCase() ?? ''
   if (hex.length === 3) {
     const r = Number.parseInt(hex[0] + hex[0], 16)
     const g = Number.parseInt(hex[1] + hex[1], 16)
     const b = Number.parseInt(hex[2] + hex[2], 16)
-    return `rgb(${r},${g},${b})`
+    return { r, g, b }
   }
   const r = Number.parseInt(hex.slice(0, 2), 16)
   const g = Number.parseInt(hex.slice(2, 4), 16)
   const b = Number.parseInt(hex.slice(4, 6), 16)
-  return `rgb(${r},${g},${b})`
+  return { r, g, b }
+}
+
+function colorToCssRgb(color: string): string {
+  const parts = hexToRgbParts(color)
+  if (!parts) return color.trim()
+  return `rgb(${parts.r},${parts.g},${parts.b})`
+}
+
+function colorToCssRgba(color: string, alpha: number): string {
+  const parts = hexToRgbParts(color)
+  if (!parts) return color.trim()
+  return `rgba(${parts.r},${parts.g},${parts.b},${alpha})`
+}
+
+function splitFirstMarkableChar(text: string): { before: string; char: string | null; after: string } {
+  const markable = /[A-Za-z0-9\u4e00-\u9fff]/
+  let index = 0
+  for (const ch of text) {
+    if (markable.test(ch)) {
+      return {
+        before: text.slice(0, index),
+        char: ch,
+        after: text.slice(index + ch.length),
+      }
+    }
+    index += ch.length
+  }
+  return { before: text, char: null, after: '' }
 }
 
 function inlinePlainText(nodes: InlineNode[]): string {
@@ -226,6 +254,40 @@ function renderSwissKleinChapterHeading(
   chapterIndex: number,
   title: string,
 ) {
+  if (theme.name === 'chinese') {
+    const containerStyle = [
+      'margin-top:60px',
+      'margin-bottom:30px',
+      'display:flex',
+      'align-items:baseline',
+    ].join(';')
+    const numberStyle = [
+      'font-size:60px',
+      'font-weight:900',
+      `color:${theme.color.link}`,
+      'line-height:0.8',
+      'margin-right:15px',
+    ].join(';')
+    const titleWrapStyle = [
+      `border-left:4px solid ${theme.color.link}`,
+      'padding-left:12px',
+      'display:inline-block',
+    ].join(';')
+    const titleTextStyle = [
+      `font-size:${theme.heading.h2}`,
+      'font-weight:900',
+      `color:${theme.color.text}`,
+      'display:inline-block',
+      'padding-bottom:4px',
+      `border-bottom:3px solid ${theme.color.link}`,
+    ].join(';')
+    return `<section style="${containerStyle}"><span leaf="" style="${numberStyle}">${escapeHtml(
+      formatSwissKleinChapterNumber(chapterIndex),
+    )}</span><span leaf="" style="${titleWrapStyle}"><span leaf="" style="${titleTextStyle}">${escapeHtml(
+      formatSwissKleinChapterTitle(title),
+    )}</span></span></section>`
+  }
+
   const titleColor = theme.name === 'chinese' ? theme.color.text : '#000'
   const underlineColor = theme.name === 'chinese' ? theme.color.link : '#000'
   const containerStyle = [
@@ -256,12 +318,26 @@ function renderSwissKleinChapterHeading(
   )}</span></section>`
 }
 
-function renderWeChatInlines(nodes: InlineNode[], theme: ThemeTokens): string {
+function renderWeChatInlines(
+  nodes: InlineNode[],
+  theme: ThemeTokens,
+  firstCharMark?: { done: boolean; style: string },
+): string {
   return nodes
     .map((n) => {
       switch (n.type) {
-        case 'text':
+        case 'text': {
+          if (firstCharMark && !firstCharMark.done) {
+            const { before, char, after } = splitFirstMarkableChar(n.value)
+            if (char) {
+              firstCharMark.done = true
+              return `${escapeHtml(before)}<span style="${firstCharMark.style}">${escapeHtml(
+                char,
+              )}</span>${escapeHtml(after)}`
+            }
+          }
           return escapeHtml(n.value)
+        }
         case 'break':
           return '<br>'
         case 'code':
@@ -270,26 +346,38 @@ function renderWeChatInlines(nodes: InlineNode[], theme: ThemeTokens): string {
           )}</span>`
         case 'strong': {
           const accent = colorToCssRgb(theme.color.link)
-          return `<span style="color:${accent};font-weight:bold;">${renderWeChatInlines(
+          const parts = [
+            `color:${theme.name === 'chinese' ? colorToCssRgb(theme.color.text) : accent}`,
+            'font-weight:bold',
+          ]
+          if (theme.name === 'chinese') {
+            parts.push(`background-color:${colorToCssRgba(theme.color.link, 0.16)}`)
+            parts.push('padding:0 2px')
+            parts.push('border-radius:2px')
+          }
+          return `<span style="${parts.join(';')}">${renderWeChatInlines(
             n.children,
             theme,
+            firstCharMark,
           )}</span>`
         }
         case 'em':
           return `<span leaf="" style="font-size:${theme.font.size};font-style:italic;">${renderWeChatInlines(
             n.children,
             theme,
+            firstCharMark,
           )}</span>`
         case 'underline':
           return `<span leaf="" style="${kleinUnderlineStyle(theme)}">${renderWeChatInlines(
             n.children,
             theme,
+            firstCharMark,
           )}</span>`
         case 'link': {
           const href = safeUrl(n.href)
           return `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer" style="${kleinUnderlineStyle(
             theme,
-          )}">${renderWeChatInlines(n.children, theme)}</a>`
+          )}">${renderWeChatInlines(n.children, theme, firstCharMark)}</a>`
         }
         case 'image': {
           const src = safeUrl(n.src)
@@ -306,7 +394,7 @@ function renderWeChatInlines(nodes: InlineNode[], theme: ThemeTokens): string {
 function renderSwissKleinCallout(
   callout: Extract<BlockNode, { type: 'callout' }>,
   theme: ThemeTokens,
-  ctx: { chapterIndex: number },
+  ctx: { chapterIndex: number; firstParagraphDone: boolean },
 ) {
   const containerStyle = [
     `border:2px solid ${theme.color.link}`,
@@ -340,7 +428,7 @@ function renderSwissKleinCallout(
 function renderSwissKleinWeChatBlock(
   block: BlockNode,
   theme: ThemeTokens,
-  ctx: { chapterIndex: number },
+  ctx: { chapterIndex: number; firstParagraphDone: boolean },
   tight = false,
 ): string {
   const bodyLeafStyle = wechatSafeTextStyle(theme)
@@ -365,7 +453,11 @@ function renderSwissKleinWeChatBlock(
       const margin = depth === 1 ? '40px 0 18px' : depth === 3 ? '24px 0 12px' : '30px 0 14px'
       const weight = depth === 1 ? '900' : '800'
       const headingColor = theme.name === 'chinese' ? theme.color.text : '#000'
-      return `<section style="margin:${margin};"><span leaf="" style="font-size:${size};font-weight:${weight};color:${headingColor};">${renderWeChatInlines(
+      const headingSectionStyle =
+        theme.name === 'chinese'
+          ? `margin:${margin};padding-left:12px;border-left:4px solid ${theme.color.link};`
+          : `margin:${margin};`
+      return `<section style="${headingSectionStyle}"><span leaf="" style="font-size:${size};font-weight:${weight};color:${headingColor};">${renderWeChatInlines(
         block.children,
         theme,
       )}</span></section>`
@@ -374,6 +466,25 @@ function renderSwissKleinWeChatBlock(
       const onlyImage = singleImageFromInlines(block.children)
       if (onlyImage) return renderWeChatInlines([onlyImage], theme)
       const sectionStyle = `${bodyLeafStyle};margin:${paraMargin};`
+      if (theme.name === 'chinese' && !tight && !ctx.firstParagraphDone) {
+        const dotStyle = [
+          'display:inline-block',
+          `background:${theme.color.link}`,
+          'width:7px',
+          'height:7px',
+          'border-radius:50%',
+          'margin-right:8px',
+          'vertical-align:middle',
+        ].join(';')
+        const firstCharStyle = [
+          `color:${colorToCssRgb(theme.color.link)}`,
+          'font-weight:900',
+        ].join(';')
+        const state = { done: false, style: firstCharStyle }
+        const inner = renderWeChatInlines(block.children, theme, state)
+        ctx.firstParagraphDone = true
+        return `<section style="${sectionStyle}"><span leaf="" style="${bodyLeafStyle}"><span style="${dotStyle}"></span>${inner}</span></section>`
+      }
       return `<section style="${sectionStyle}"><span leaf="" style="${bodyLeafStyle}">${renderWeChatInlines(
         block.children,
         theme,
@@ -419,6 +530,29 @@ function renderSwissKleinWeChatBlock(
     case 'blockquote': {
       const text = blocksPlainText(block.children)
       const html = escapeHtml(text).replace(/\n/g, '<br>')
+      if (theme.name === 'chinese') {
+        const style = [
+          `border-left:4px solid ${theme.color.link}`,
+          'padding:16px 18px',
+          `font-size:${theme.font.size}`,
+          'margin:30px 0',
+          `background:${theme.color.quoteBg}`,
+        ].join(';')
+        const deco = [
+          'display:block',
+          'width:36px',
+          `border-top:2px solid ${theme.color.link}`,
+          'margin:0 0 10px',
+        ].join(';')
+        const leafStyle = [
+          `font-size:${theme.font.size}`,
+          `line-height:${theme.font.lineHeight}`,
+          'letter-spacing:2px',
+          `color:${theme.color.text}`,
+          'font-weight:500',
+        ].join(';')
+        return `<section style="${style}"><span leaf="" style="${deco}"></span><span leaf="" style="${leafStyle}">${html}</span></section>`
+      }
       const style = [
         `border:2px solid ${theme.color.link}`,
         'padding:20px',
@@ -448,7 +582,7 @@ function renderSwissKleinWeChatHtml(
   options: SwissKleinOptions,
 ): string {
   const rootStyle = swissKleinRootStyle(theme)
-  const ctx = { chapterIndex: 0 }
+  const ctx = { chapterIndex: 0, firstParagraphDone: false }
   const meta = renderSwissKleinMetaHeader(theme, options.metaText)
   const body = blocks.map((b) => renderSwissKleinWeChatBlock(b, theme, ctx)).join('')
   const footer = renderSwissKleinFooter(theme, options.footerText)
