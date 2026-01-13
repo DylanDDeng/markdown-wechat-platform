@@ -26,6 +26,23 @@ function safeUrl(url: string) {
   return '#'
 }
 
+function colorToCssRgb(color: string): string {
+  const trimmed = color.trim()
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed)
+  if (!match) return trimmed
+  const hex = match[1]?.toLowerCase() ?? ''
+  if (hex.length === 3) {
+    const r = Number.parseInt(hex[0] + hex[0], 16)
+    const g = Number.parseInt(hex[1] + hex[1], 16)
+    const b = Number.parseInt(hex[2] + hex[2], 16)
+    return `rgb(${r},${g},${b})`
+  }
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  return `rgb(${r},${g},${b})`
+}
+
 function inlinePlainText(nodes: InlineNode[]): string {
   return nodes
     .map((n) => {
@@ -251,11 +268,13 @@ function renderWeChatInlines(nodes: InlineNode[], theme: ThemeTokens): string {
           return `<span leaf="" style="font-size:${theme.font.size};background:${theme.color.codeBg};padding:0 4px;border-radius:${theme.radius};">${escapeHtml(
             n.value,
           )}</span>`
-        case 'strong':
-          return `<span leaf="" style="font-size:${theme.font.size};color:${theme.color.link};font-weight:700;">${renderWeChatInlines(
+        case 'strong': {
+          const accent = colorToCssRgb(theme.color.link)
+          return `<span style="color:${accent};font-weight:bold;">${renderWeChatInlines(
             n.children,
             theme,
           )}</span>`
+        }
         case 'em':
           return `<span leaf="" style="font-size:${theme.font.size};font-style:italic;">${renderWeChatInlines(
             n.children,

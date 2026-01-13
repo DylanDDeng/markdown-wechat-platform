@@ -43,6 +43,16 @@ function extractSwissKleinMeta(markdown: string): { metaText: string | null; cle
   return { metaText, cleanedMarkdown: cleanedLines.join('\n') }
 }
 
+function sanitizeWeChatPasteHtml(html: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    doc.querySelectorAll('[leaf]').forEach((el) => el.removeAttribute('leaf'))
+    return doc.body.innerHTML
+  } catch {
+    return html.replace(/\sleaf=(\"[^\"]*\"|\'[^\']*\'|[^\s>]+)/g, '')
+  }
+}
+
 export class WeChatPreviewView extends ItemView {
   private plugin: WeChatPreviewPlugin
 
@@ -207,7 +217,7 @@ export class WeChatPreviewView extends ItemView {
     }
     this.setStatus('Copying…')
     try {
-      await copyText(this.lastHtml)
+      await copyText(sanitizeWeChatPasteHtml(this.lastHtml))
       this.setStatus('Copied HTML')
     } catch (err) {
       this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -221,7 +231,7 @@ export class WeChatPreviewView extends ItemView {
     }
     this.setStatus('Copying…')
     try {
-      await copyRichHtml(this.lastHtml)
+      await copyRichHtml(sanitizeWeChatPasteHtml(this.lastHtml))
       this.setStatus('Copied rendered content (paste into WeChat editor)')
     } catch (err) {
       this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
