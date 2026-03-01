@@ -7,10 +7,31 @@
 
 .wechatPreviewToolbar {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
   padding: 10px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.wechatPreviewActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wechatPreviewToolbar button {
+  min-height: 30px;
+}
+
+.wechatPreviewPrimaryBtn {
+  font-weight: 600;
+}
+
+.wechatPreviewToolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .wechatPreviewFrameWrap {
@@ -24,11 +45,27 @@
 
 .wechatPreviewStatus {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-normal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 40%;
+  max-width: min(520px, 100%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.wechatPreviewStatus.is-loading {
+  color: var(--text-accent);
+}
+
+.wechatPreviewStatus.is-success {
+  color: var(--color-green);
+}
+
+.wechatPreviewStatus.is-error {
+  color: var(--color-red);
 }
 
 .wechatPreviewFrame {

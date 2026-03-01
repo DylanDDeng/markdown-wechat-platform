@@ -1,8 +1,6 @@
 import { ItemView, MarkdownView, Notice, type WorkspaceLeaf, setIcon } from 'obsidian'
 import type WeChatPreviewPlugin from '../main'
-import { stripFrontmatter, parseMarkdown } from '../core/markdown'
-import { getThemeByName, themes } from '../core/themes'
-import { renderWeChatHtml } from '../core/render'
+import { stripFrontmatter } from '../core/markdown'
 import { buildWeChatPreviewSrcDoc } from '../core/preview'
 import { copyRichHtml, copyText } from '../core/clipboard'
 import { SYSTEM_PROMPT, buildUserPrompt } from '../core/aiPrompts'
@@ -22,34 +20,7 @@ type AiSource = {
   filePath?: string
 }
 
-function extractSwissKleinMeta(markdown: string): { metaText: string | null; cleanedMarkdown: string } {
-  const source = stripFrontmatter(markdown)
-  const lines = source.split('\n')
-  const pattern = /这是\s*Bubble\s*(\d{4})\s*年的第\s*(\d+)\s*篇更新/i
-  let metaText: string | null = null
-  const cleanedLines: string[] = []
-
-  for (const line of lines) {
-    const match = pattern.exec(line)
-    if (!match) {
-      cleanedLines.push(line)
-      continue
-    }
-
-    if (!metaText) {
-      const year = match[1] ?? ''
-      const updateNumber = Number.parseInt(match[2] ?? '', 10)
-      if (Number.isFinite(updateNumber)) {
-        metaText = `BUBBLE ${year} UPDATE ${String(updateNumber).padStart(2, '0')}`
-      }
-    }
-
-    const trimmed = line.replace(pattern, '').trim()
-    if (trimmed.length) cleanedLines.push(trimmed)
-  }
-
-  return { metaText, cleanedMarkdown: cleanedLines.join('\n') }
-}
+type StatusTone = 'neutral' | 'loading' | 'success' | 'error'
 
 function sanitizeWeChatPasteHtml(html: string): string {
   try {
@@ -138,27 +109,49 @@ function stringifyError(error: unknown): string {
   return String(error)
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function renderHintPanel(title: string, description: string, detail?: string): string {
+  const detailSection = detail?.trim().length
+    ? `<p style="margin:12px 0 0;color:#6b7280;font-size:13px;line-height:1.6;word-break:break-word;">${escapeHtml(
+        detail,
+      )}</p>`
+    : ''
+  return `<section style="max-width:700px;margin:24px auto;padding:24px 22px;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;"><h3 style="margin:0 0 8px;font-size:18px;line-height:1.4;color:#111827;">${escapeHtml(
+    title,
+  )}</h3><p style="margin:0;color:#4b5563;font-size:14px;line-height:1.8;">${escapeHtml(
+    description,
+  )}</p>${detailSection}</section>`
+}
+
 export class WeChatPreviewView extends ItemView {
   private plugin: WeChatPreviewPlugin
 
   private iframeEl: HTMLIFrameElement | null = null
   private statusEl: HTMLElement | null = null
-  private themeSelectEl: HTMLSelectElement | null = null
+  private generateBtnEl: HTMLButtonElement | null = null
+  private copyRenderedBtnEl: HTMLButtonElement | null = null
+  private copyHtmlBtnEl: HTMLButtonElement | null = null
 
-  private lastMarkdown: string | null = null
-  private lastThemeName: string | null = null
-  private lastMetaText: string | null = null
-  private lastFooterText: string | null = null
-  private lastLocalHtml: string | null = null
-  private lastOutputHtml: string | null = null
+  private lastFrameHtml: string | null = null
+  private lastCurrentSourceSignature: string | null = null
 
   private lastAiHtml: string | null = null
   private lastAiSourceSignature: string | null = null
   private lastObservedAiSignature: string | null = null
   private lastObservedFilePath: string | null = null
   private lastAiError: string | null = null
+  private lastAiErrorSignature: string | null = null
   private aiRequestSeq = 0
   private aiGenerating = false
+  private lastAutoGenerateEnabled: boolean | null = null
 
   private refreshTimer: number | null = null
   private autoGenerateTimer: number | null = null
@@ -185,37 +178,27 @@ export class WeChatPreviewView extends ItemView {
     this.contentEl.addClass('wechatPreviewRoot')
 
     const toolbar = this.contentEl.createDiv({ cls: 'wechatPreviewToolbar' })
+    const actions = toolbar.createDiv({ cls: 'wechatPreviewActions' })
 
-    const themeWrap = toolbar.createDiv()
-    themeWrap.createSpan({ text: 'Theme ' })
-    this.themeSelectEl = themeWrap.createEl('select')
-    themes.forEach((t) => {
-      this.themeSelectEl?.createEl('option', { value: t.name, text: t.label })
+    this.generateBtnEl = actions.createEl('button', {
+      text: 'Generate AI HTML',
+      cls: 'wechatPreviewPrimaryBtn',
     })
-    this.themeSelectEl.value = this.plugin.settings.themeName
-    this.themeSelectEl.onchange = async () => {
-      this.plugin.settings.themeName = this.themeSelectEl?.value ?? 'klein'
-      await this.plugin.saveSettings()
-    }
-
-    const btnWrap = toolbar.createDiv()
-    const generateAiBtn = btnWrap.createEl('button', { text: 'Generate AI HTML' })
-    generateAiBtn.onclick = () => {
+    this.generateBtnEl.onclick = () => {
       void this.requestGenerateAi()
     }
 
-    const copyRenderedBtn = btnWrap.createEl('button', { text: 'Copy Rendered' })
-    copyRenderedBtn.onclick = () => {
+    this.copyRenderedBtnEl = actions.createEl('button', { text: 'Copy Rendered' })
+    this.copyRenderedBtnEl.onclick = () => {
       void this.handleCopyRendered()
     }
 
-    const copyHtmlBtn = btnWrap.createEl('button', { text: 'Copy HTML' })
-    copyHtmlBtn.onclick = () => {
+    this.copyHtmlBtnEl = actions.createEl('button', { text: 'Copy HTML' })
+    this.copyHtmlBtnEl.onclick = () => {
       void this.handleCopyHtml()
     }
 
     toolbar.createDiv({ cls: 'spacer' })
-
     this.statusEl = toolbar.createDiv({ cls: 'wechatPreviewStatus', text: '' })
 
     const frameWrap = this.contentEl.createDiv({ cls: 'wechatPreviewFrameWrap' })
@@ -237,7 +220,9 @@ export class WeChatPreviewView extends ItemView {
     this.clearAutoGenerateTimer()
     this.iframeEl = null
     this.statusEl = null
-    this.themeSelectEl = null
+    this.generateBtnEl = null
+    this.copyRenderedBtnEl = null
+    this.copyHtmlBtnEl = null
     this.contentEl.removeClass('wechatPreviewRoot')
   }
 
@@ -246,9 +231,11 @@ export class WeChatPreviewView extends ItemView {
   }
 
   async requestGenerateAi(): Promise<void> {
+    if (this.aiGenerating) return
     const source = this.getActiveMarkdownSource()
     if (!source) {
-      this.setStatus('No active note')
+      this.setStatus('No active note', 'error')
+      new Notice('No active Markdown note', 4000)
       return
     }
     const aiSource = this.buildAiSource(source.markdown, source.filePath)
@@ -318,6 +305,7 @@ export class WeChatPreviewView extends ItemView {
     const apiKey = this.plugin.settings.openRouterApiKey.trim()
     if (!apiKey.length) {
       this.lastAiError = 'OpenRouter API key is not set'
+      this.lastAiErrorSignature = source.signature
       if (isManual) new Notice('OpenRouter API key is not set', 5000)
       this.refresh(true)
       return
@@ -326,9 +314,8 @@ export class WeChatPreviewView extends ItemView {
     const requestSeq = ++this.aiRequestSeq
     this.aiGenerating = true
     this.lastAiError = null
-    this.setStatus(
-      `${source.filePath ?? 'Current note'} · Generating AI HTML (${trigger === 'manual' ? 'manual' : 'auto'})`,
-    )
+    this.lastAiErrorSignature = null
+    this.refresh(true)
 
     try {
       const html = await generateHtmlWithOpenRouter({
@@ -347,10 +334,12 @@ export class WeChatPreviewView extends ItemView {
       this.lastAiHtml = normalizeAiHtml(html)
       this.lastAiSourceSignature = source.signature
       this.lastAiError = null
+      this.lastAiErrorSignature = null
       if (isManual) new Notice('AI HTML generated', 3000)
     } catch (error) {
       if (requestSeq !== this.aiRequestSeq) return
       this.lastAiError = stringifyError(error)
+      this.lastAiErrorSignature = source.signature
       if (isManual) new Notice(`AI generation failed: ${this.lastAiError}`, 7000)
     } finally {
       if (requestSeq === this.aiRequestSeq) {
@@ -360,116 +349,181 @@ export class WeChatPreviewView extends ItemView {
     }
   }
 
+  private getCurrentAiHtml(sourceSignature: string): string | null {
+    if (!this.lastAiHtml) return null
+    if (this.lastAiSourceSignature !== sourceSignature) return null
+    return this.lastAiHtml
+  }
+
+  private renderStateHtml(
+    source: { filePath?: string },
+    sourceSignature: string,
+    autoGenerateEnabled: boolean,
+  ): string {
+    if (this.aiGenerating) {
+      return renderHintPanel(
+        'Generating AI HTML...',
+        'The model is formatting your current note. Please wait.',
+        source.filePath ?? 'Current note',
+      )
+    }
+
+    if (this.lastAiError && this.lastAiErrorSignature === sourceSignature) {
+      return renderHintPanel(
+        'AI generation failed',
+        'Please check API key, model availability, and network, then click Generate AI HTML again.',
+        this.lastAiError,
+      )
+    }
+
+    if (autoGenerateEnabled) {
+      return renderHintPanel(
+        'Auto generation is enabled',
+        'When you stop typing, AI generation starts automatically. You can also click Generate AI HTML manually.',
+        source.filePath ?? 'Current note',
+      )
+    }
+
+    if (this.lastAiHtml && this.lastAiSourceSignature && this.lastAiSourceSignature !== sourceSignature) {
+      return renderHintPanel(
+        'Content changed',
+        'The previous AI result is out of date for this note. Click Generate AI HTML to refresh.',
+        source.filePath ?? 'Current note',
+      )
+    }
+
+    return renderHintPanel(
+      'Ready to generate',
+      'Click Generate AI HTML to produce WeChat-ready HTML for the current note.',
+      source.filePath ?? 'Current note',
+    )
+  }
+
+  private updateActionButtons(hasCurrentAi: boolean) {
+    if (this.generateBtnEl) {
+      this.generateBtnEl.textContent = this.aiGenerating ? 'Generating...' : 'Generate AI HTML'
+      this.generateBtnEl.disabled = this.aiGenerating
+    }
+
+    if (this.copyRenderedBtnEl) this.copyRenderedBtnEl.disabled = !hasCurrentAi
+    if (this.copyHtmlBtnEl) this.copyHtmlBtnEl.disabled = !hasCurrentAi
+  }
+
   private refresh(force: boolean) {
     const source = this.getActiveMarkdownSource()
     if (!source) {
-      this.setStatus('No active note')
-      if (this.iframeEl) this.iframeEl.srcdoc = buildWeChatPreviewSrcDoc(this.renderEmpty())
-      this.lastOutputHtml = null
+      this.lastCurrentSourceSignature = null
+      this.updateActionButtons(false)
+      this.setStatus('No active note', 'error')
+      const html = buildWeChatPreviewSrcDoc(
+        renderHintPanel('No active note', 'Open a Markdown note first, then generate AI HTML.'),
+      )
+      if (force || html !== this.lastFrameHtml) {
+        this.lastFrameHtml = html
+        if (this.iframeEl) this.iframeEl.srcdoc = html
+      }
       return
     }
 
-    const themeName = this.plugin.settings.themeName
-    const { metaText: derivedMetaText, cleanedMarkdown } = extractSwissKleinMeta(source.markdown)
-    const metaText = derivedMetaText ?? this.plugin.settings.metaText
-    const footerText = this.plugin.settings.footerText
-
-    const shouldRebuildLocal =
-      force ||
-      !this.lastLocalHtml ||
-      this.lastMarkdown !== source.markdown ||
-      this.lastThemeName !== themeName ||
-      this.lastMetaText !== metaText ||
-      this.lastFooterText !== footerText
-
-    if (shouldRebuildLocal) {
-      this.lastMarkdown = source.markdown
-      this.lastThemeName = themeName
-      this.lastMetaText = metaText
-      this.lastFooterText = footerText
-
-      const theme = getThemeByName(themeName)
-      const blocks = parseMarkdown(cleanedMarkdown)
-      this.lastLocalHtml = renderWeChatHtml(blocks, theme, { metaText, footerText })
-    }
-
     const aiSource = this.buildAiSource(source.markdown, source.filePath)
-    const usingAi = !!this.lastAiHtml && this.lastAiSourceSignature === aiSource.signature
-    const outputHtml = usingAi ? this.lastAiHtml : this.lastLocalHtml
+    this.lastCurrentSourceSignature = aiSource.signature
 
-    if (this.plugin.settings.autoGenerateEnabled) {
+    const autoGenerateEnabled = this.plugin.settings.autoGenerateEnabled
+    if (autoGenerateEnabled) {
       const filePathChanged = this.lastObservedFilePath !== (source.filePath ?? '')
-      if (this.lastObservedAiSignature !== aiSource.signature || filePathChanged) {
+      const autoJustEnabled = this.lastAutoGenerateEnabled !== true
+      if (
+        this.lastObservedAiSignature !== aiSource.signature ||
+        filePathChanged ||
+        autoJustEnabled
+      ) {
         this.lastObservedAiSignature = aiSource.signature
         this.lastObservedFilePath = source.filePath ?? ''
         this.scheduleAutoGenerate(aiSource)
       }
+      this.lastAutoGenerateEnabled = true
     } else {
       this.lastObservedAiSignature = aiSource.signature
       this.lastObservedFilePath = source.filePath ?? ''
+      this.lastAutoGenerateEnabled = false
       this.clearAutoGenerateTimer()
     }
 
-    if (outputHtml && (force || outputHtml !== this.lastOutputHtml)) {
-      this.lastOutputHtml = outputHtml
-      if (this.iframeEl) this.iframeEl.srcdoc = buildWeChatPreviewSrcDoc(outputHtml)
+    const currentAiHtml = this.getCurrentAiHtml(aiSource.signature)
+    const hasCurrentAi = !!currentAiHtml
+    this.updateActionButtons(hasCurrentAi)
+
+    const frameContent = hasCurrentAi
+      ? buildWeChatPreviewSrcDoc(currentAiHtml)
+      : buildWeChatPreviewSrcDoc(this.renderStateHtml(source, aiSource.signature, autoGenerateEnabled))
+    if (force || frameContent !== this.lastFrameHtml) {
+      this.lastFrameHtml = frameContent
+      if (this.iframeEl) this.iframeEl.srcdoc = frameContent
     }
 
-    this.updateStatus(source.filePath, usingAi)
-  }
-
-  private updateStatus(filePath: string | undefined, usingAi: boolean) {
-    const base = filePath ?? 'Preview updated'
+    const base = source.filePath ?? 'Current note'
     if (this.aiGenerating) {
-      this.setStatus(`${base} · Generating AI HTML…`)
+      this.setStatus(`${base} · Generating AI HTML...`, 'loading')
       return
     }
-    if (usingAi) {
-      this.setStatus(`${base} · AI HTML`)
+    if (hasCurrentAi) {
+      this.setStatus(`${base} · AI HTML ready`, 'success')
       return
     }
-    if (this.lastAiError) {
-      this.setStatus(`${base} · Local fallback (${this.lastAiError})`)
+    if (this.lastAiError && this.lastAiErrorSignature === aiSource.signature) {
+      this.setStatus(`${base} · AI generation failed`, 'error')
       return
     }
-    this.setStatus(`${base} · Local preview`)
+    if (autoGenerateEnabled) {
+      this.setStatus(`${base} · Waiting for auto generation`, 'neutral')
+      return
+    }
+    this.setStatus(`${base} · Ready to generate`, 'neutral')
   }
 
-  private renderEmpty() {
-    return `<div class="wechatPreviewEmpty">No active Markdown note.</div>`
-  }
-
-  private setStatus(text: string) {
+  private setStatus(text: string, tone: StatusTone) {
     if (!this.statusEl) return
     this.statusEl.textContent = text
     this.statusEl.setAttribute('title', text)
+    this.statusEl.removeClass('is-loading', 'is-success', 'is-error')
+    if (tone === 'loading') this.statusEl.addClass('is-loading')
+    if (tone === 'success') this.statusEl.addClass('is-success')
+    if (tone === 'error') this.statusEl.addClass('is-error')
   }
 
   private async handleCopyHtml() {
-    if (!this.lastOutputHtml) {
-      this.setStatus('Nothing to copy')
+    const source = this.getActiveMarkdownSource()
+    const currentAiHtml =
+      source && this.getCurrentAiHtml(this.buildAiSource(source.markdown, source.filePath).signature)
+    if (!currentAiHtml) {
+      this.setStatus('No AI HTML to copy', 'error')
+      new Notice('No AI HTML for current note. Generate first.', 4000)
       return
     }
-    this.setStatus('Copying…')
+    this.setStatus('Copying HTML...', 'loading')
     try {
-      await copyText(sanitizeWeChatPasteHtml(this.lastOutputHtml))
-      this.setStatus('Copied HTML')
+      await copyText(sanitizeWeChatPasteHtml(currentAiHtml))
+      this.setStatus('Copied HTML', 'success')
     } catch (err) {
-      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
+      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }
 
   private async handleCopyRendered() {
-    if (!this.lastOutputHtml) {
-      this.setStatus('Nothing to copy')
+    const source = this.getActiveMarkdownSource()
+    const currentAiHtml =
+      source && this.getCurrentAiHtml(this.buildAiSource(source.markdown, source.filePath).signature)
+    if (!currentAiHtml) {
+      this.setStatus('No AI HTML to copy', 'error')
+      new Notice('No AI HTML for current note. Generate first.', 4000)
       return
     }
-    this.setStatus('Copying…')
+    this.setStatus('Copying rendered content...', 'loading')
     try {
-      await copyRichHtml(sanitizeWeChatPasteHtml(this.lastOutputHtml))
-      this.setStatus('Copied rendered content (paste into WeChat editor)')
+      await copyRichHtml(sanitizeWeChatPasteHtml(currentAiHtml))
+      this.setStatus('Copied rendered content', 'success')
     } catch (err) {
-      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`)
+      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }
 }
