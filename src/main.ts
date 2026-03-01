@@ -21,7 +21,18 @@ export default class WeChatPreviewPlugin extends Plugin {
     this.addCommand({
       id: 'open-wechat-preview',
       name: 'Open WeChat Preview',
-      callback: () => this.activateView(),
+      callback: async () => {
+        await this.activateView()
+      },
+    })
+
+    this.addCommand({
+      id: 'generate-ai-html-for-current-note',
+      name: 'Generate AI HTML for current note',
+      callback: async () => {
+        const view = await this.activateView()
+        if (view) await view.requestGenerateAi()
+      },
     })
 
     this.addSettingTab(new WeChatPreviewSettingTab(this.app, this))
@@ -70,16 +81,18 @@ export default class WeChatPreviewPlugin extends Plugin {
     })
   }
 
-  async activateView(): Promise<void> {
+  async activateView(): Promise<WeChatPreviewView | null> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_WECHAT_PREVIEW)[0]
     if (existing) {
       this.app.workspace.revealLeaf(existing)
-      return
+      const view = existing.view
+      return view instanceof WeChatPreviewView ? view : null
     }
 
     const leaf = this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(false)
     await leaf.setViewState({ type: VIEW_TYPE_WECHAT_PREVIEW, active: true })
     this.app.workspace.revealLeaf(leaf)
+    const view = leaf.view
+    return view instanceof WeChatPreviewView ? view : null
   }
 }
-
