@@ -3,7 +3,7 @@ import type WeChatPreviewPlugin from '../main'
 import { stripFrontmatter } from '../core/markdown'
 import { buildWeChatPreviewSrcDoc } from '../core/preview'
 import { copyRichHtml, copyText } from '../core/clipboard'
-import { SYSTEM_PROMPT, buildUserPrompt } from '../core/aiPrompts'
+import { buildUserPrompt, getPromptThemeById } from '../core/aiPrompts'
 import { generateHtmlWithOpenRouter } from '../core/openrouter'
 
 export const VIEW_TYPE_WECHAT_PREVIEW = 'wechat-preview-view'
@@ -17,6 +17,8 @@ type AiSource = {
   markdown: string
   signature: string
   model: string
+  themeId: string
+  systemPrompt: string
   filePath?: string
 }
 
@@ -80,8 +82,13 @@ function deriveTitleFromFilePath(filePath?: string): string {
   return name.replace(/\.[^.]+$/, '').trim()
 }
 
-function buildAiSourceSignature(model: string, title: string, markdown: string): string {
-  return JSON.stringify({ model, title, markdown })
+function buildAiSourceSignature(
+  model: string,
+  themeId: string,
+  title: string,
+  markdown: string,
+): string {
+  return JSON.stringify({ model, themeId, title, markdown })
 }
 
 function normalizeAiHtml(rawHtml: string): string {
@@ -278,11 +285,14 @@ export class WeChatPreviewView extends ItemView {
       extractFirstHeading(markdownWithoutFrontmatter) ??
       deriveTitleFromFilePath(filePath)
     const model = this.resolveModelName()
+    const promptTheme = getPromptThemeById(this.plugin.settings.promptThemeId)
     return {
       title,
       markdown: markdownWithoutFrontmatter,
       model,
-      signature: buildAiSourceSignature(model, title, markdownWithoutFrontmatter),
+      themeId: promptTheme.id,
+      systemPrompt: promptTheme.systemPrompt,
+      signature: buildAiSourceSignature(model, promptTheme.id, title, markdownWithoutFrontmatter),
       filePath,
     }
   }
@@ -321,7 +331,7 @@ export class WeChatPreviewView extends ItemView {
       const html = await generateHtmlWithOpenRouter({
         apiKey,
         model: source.model,
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: source.systemPrompt,
         userPrompt: buildUserPrompt({
           title: source.title,
           markdown: source.markdown,
