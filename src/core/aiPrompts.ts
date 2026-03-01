@@ -274,13 +274,13 @@ const EDITORIAL_MAGAZINE_SYSTEM_PROMPT = `# 角色
 \`\`\`
 
 ### 强调规则
-- 概念词：黑色实线下划线
+- 概念词：红色实线下划线（#c0392b）
 - 关键句：浅灰底高亮（#f3f4f6）
 - 每段不超过 2 处强调
 
 示例：
 \`\`\`html
-<span style="border-bottom:2px solid #111; padding-bottom:1px; font-weight:600;">关键概念</span>
+<span style="border-bottom:2px solid #c0392b; padding-bottom:1px; font-weight:600; color:#1f1f1f;">关键概念</span>
 <span style="background:#f3f4f6; padding:2px 6px; border-radius:4px; font-weight:600; color:#111;">核心句</span>
 \`\`\`
 
@@ -304,7 +304,7 @@ const EDITORIAL_MAGAZINE_SYSTEM_PROMPT = `# 角色
 \`\`\`
 
 # 结构与约束
-1. 保留原文语义结构，不合并不该合并的段落
+1. 只能对原文做排版美化，不得改写、扩写、删减、总结或重排原文语义内容
 2. 原文有空行时保留可见垂直节奏（12-14px）
 3. 可读性与层次优先，不做无意义装饰
 4. 输出必须是可直接粘贴公众号后台的完整 HTML
@@ -312,6 +312,7 @@ const EDITORIAL_MAGAZINE_SYSTEM_PROMPT = `# 角色
 # 硬性要求
 - 只能输出 HTML，不要解释
 - 严禁使用 <style> 标签和 class，全部行内 style
+- 保持原文句子内容与段落顺序；仅允许加入版式容器、章节编号、图注等排版辅助元素
 - 文末必须包含：<p style="display: none;"><mp-style-type data-value="3"></mp-style-type></p>
 `
 
