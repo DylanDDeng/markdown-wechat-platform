@@ -82,6 +82,34 @@ function deriveTitleFromFilePath(filePath?: string): string {
   return name.replace(/\.[^.]+$/, '').trim()
 }
 
+function normalizeComparableText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function stripLeadingTitleHeading(markdownWithoutFrontmatter: string, title: string): string {
+  if (!title.trim().length) return markdownWithoutFrontmatter
+  const lines = normalizeLineEndings(markdownWithoutFrontmatter).split('\n')
+  let firstContentLine = 0
+  while (firstContentLine < lines.length && (lines[firstContentLine] ?? '').trim() === '') {
+    firstContentLine += 1
+  }
+  if (firstContentLine >= lines.length) return markdownWithoutFrontmatter
+
+  const headingMatch = /^\s*#\s+(.+?)\s*$/.exec(lines[firstContentLine] ?? '')
+  if (!headingMatch?.[1]) return markdownWithoutFrontmatter
+
+  const headingText = headingMatch[1].trim()
+  if (normalizeComparableText(headingText) !== normalizeComparableText(title)) {
+    return markdownWithoutFrontmatter
+  }
+
+  const nextLines = [...lines.slice(0, firstContentLine), ...lines.slice(firstContentLine + 1)]
+  if ((nextLines[firstContentLine] ?? '').trim() === '') {
+    nextLines.splice(firstContentLine, 1)
+  }
+  return nextLines.join('\n')
+}
+
 function buildAiSourceSignature(
   model: string,
   themeId: string,
@@ -284,15 +312,16 @@ export class WeChatPreviewView extends ItemView {
       extractFrontmatterTitle(markdown) ??
       extractFirstHeading(markdownWithoutFrontmatter) ??
       deriveTitleFromFilePath(filePath)
+    const markdownForPrompt = stripLeadingTitleHeading(markdownWithoutFrontmatter, title)
     const model = this.resolveModelName()
     const promptTheme = getPromptThemeById(this.plugin.settings.promptThemeId)
     return {
       title,
-      markdown: markdownWithoutFrontmatter,
+      markdown: markdownForPrompt,
       model,
       themeId: promptTheme.id,
       systemPrompt: promptTheme.systemPrompt,
-      signature: buildAiSourceSignature(model, promptTheme.id, title, markdownWithoutFrontmatter),
+      signature: buildAiSourceSignature(model, promptTheme.id, title, markdownForPrompt),
       filePath,
     }
   }
