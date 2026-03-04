@@ -5,6 +5,9 @@ import { buildWeChatPreviewSrcDoc } from '../core/preview'
 import { copyRichHtml, copyText } from '../core/clipboard'
 import { buildUserPrompt, getPromptThemeById } from '../core/aiPrompts'
 import { generateHtmlWithOpenRouter } from '../core/openrouter'
+import { getFixedTemplateById, type FixedTemplateId } from '../templates/fixedTemplates'
+import { renderMarkdownWithFixedTemplate } from '../templates/renderFixedTemplate'
+import type { RenderMode } from './SettingsTab'
 
 export const VIEW_TYPE_WECHAT_PREVIEW = 'wechat-preview-view'
 
@@ -19,6 +22,15 @@ type AiSource = {
   model: string
   themeId: string
   systemPrompt: string
+  filePath?: string
+}
+
+type FixedTemplateSource = {
+  title: string
+  markdown: string
+  signature: string
+  templateId: FixedTemplateId
+  customCss: string
   filePath?: string
 }
 
@@ -119,6 +131,15 @@ function buildAiSourceSignature(
   return JSON.stringify({ model, themeId, title, markdown })
 }
 
+function buildFixedTemplateSourceSignature(
+  templateId: FixedTemplateId,
+  customCss: string,
+  title: string,
+  markdown: string,
+): string {
+  return JSON.stringify({ templateId, customCss, title, markdown })
+}
+
 function normalizeAiHtml(rawHtml: string): string {
   let html = rawHtml.trim()
   const fencedMatch = /^```(?:html)?\s*([\s\S]*?)\s*```$/i.exec(html)
@@ -171,11 +192,13 @@ export class WeChatPreviewView extends ItemView {
 
   private iframeEl: HTMLIFrameElement | null = null
   private statusEl: HTMLElement | null = null
+  private modeSelectEl: HTMLSelectElement | null = null
   private generateBtnEl: HTMLButtonElement | null = null
   private copyRenderedBtnEl: HTMLButtonElement | null = null
   private copyHtmlBtnEl: HTMLButtonElement | null = null
 
   private lastFrameHtml: string | null = null
+  private lastOutputHtml: string | null = null
   private lastCurrentSourceSignature: string | null = null
 
   private lastAiHtml: string | null = null
@@ -187,6 +210,9 @@ export class WeChatPreviewView extends ItemView {
   private aiRequestSeq = 0
   private aiGenerating = false
   private lastAutoGenerateEnabled: boolean | null = null
+
+  private lastFixedHtml: string | null = null
+  private lastFixedSourceSignature: string | null = null
 
   private refreshTimer: number | null = null
   private autoGenerateTimer: number | null = null
@@ -214,6 +240,15 @@ export class WeChatPreviewView extends ItemView {
 
     const toolbar = this.contentEl.createDiv({ cls: 'wechatPreviewToolbar' })
     const actions = toolbar.createDiv({ cls: 'wechatPreviewActions' })
+
+    this.modeSelectEl = actions.createEl('select', { cls: 'wechatPreviewModeSelect' })
+    this.modeSelectEl.appendChild(new Option('AI Mode', 'ai'))
+    this.modeSelectEl.appendChild(new Option('Fixed Template', 'fixed-template'))
+    this.modeSelectEl.value = this.plugin.settings.renderMode
+    this.modeSelectEl.onchange = () => {
+      const value = (this.modeSelectEl?.value as RenderMode | undefined) ?? 'ai'
+      void this.handleModeChange(value)
+    }
 
     this.generateBtnEl = actions.createEl('button', {
       text: 'Generate AI HTML',
@@ -255,6 +290,7 @@ export class WeChatPreviewView extends ItemView {
     this.clearAutoGenerateTimer()
     this.iframeEl = null
     this.statusEl = null
+    this.modeSelectEl = null
     this.generateBtnEl = null
     this.copyRenderedBtnEl = null
     this.copyHtmlBtnEl = null
@@ -265,7 +301,23 @@ export class WeChatPreviewView extends ItemView {
     this.refresh(true)
   }
 
+  private getRenderMode(): RenderMode {
+    return this.plugin.settings.renderMode === 'fixed-template' ? 'fixed-template' : 'ai'
+  }
+
+  private async handleModeChange(mode: RenderMode): Promise<void> {
+    if (this.plugin.settings.renderMode === mode) return
+    this.plugin.settings.renderMode = mode
+    await this.plugin.saveSettings()
+    this.refresh(true)
+  }
+
   async requestGenerateAi(): Promise<void> {
+    if (this.getRenderMode() !== 'ai') {
+      this.setStatus('Switch to AI mode to generate', 'error')
+      new Notice('Current mode is Fixed Template. Switch to AI mode first.', 4000)
+      return
+    }
     if (this.aiGenerating) return
     const source = this.getActiveMarkdownSource()
     if (!source) {
@@ -326,8 +378,34 @@ export class WeChatPreviewView extends ItemView {
     }
   }
 
+  private buildFixedTemplateSource(markdown: string, filePath?: string): FixedTemplateSource {
+    const markdownWithoutFrontmatter = stripFrontmatter(markdown)
+    const title =
+      extractFrontmatterTitle(markdown) ??
+      extractFirstHeading(markdownWithoutFrontmatter) ??
+      deriveTitleFromFilePath(filePath)
+    const markdownForTemplate = stripLeadingTitleHeading(markdownWithoutFrontmatter, title)
+    const templateId = getFixedTemplateById(this.plugin.settings.fixedTemplateId).id
+    const customCss = this.plugin.settings.customCss
+    return {
+      title,
+      markdown: markdownForTemplate,
+      templateId,
+      customCss,
+      signature: buildFixedTemplateSourceSignature(templateId, customCss, title, markdownForTemplate),
+      filePath,
+    }
+  }
+
   private resolveModelName(): string {
     return this.plugin.settings.openRouterModel.trim() || DEFAULT_OPENROUTER_MODEL
+  }
+
+  private syncModeSelector() {
+    const mode = this.getRenderMode()
+    if (this.modeSelectEl && this.modeSelectEl.value !== mode) {
+      this.modeSelectEl.value = mode
+    }
   }
 
   private scheduleAutoGenerate(source: AiSource) {
@@ -438,24 +516,33 @@ export class WeChatPreviewView extends ItemView {
     )
   }
 
-  private updateActionButtons(hasCurrentAi: boolean) {
+  private updateActionButtons(mode: RenderMode, hasCurrentOutput: boolean) {
+    const aiMode = mode === 'ai'
     if (this.generateBtnEl) {
       this.generateBtnEl.textContent = this.aiGenerating ? 'Generating...' : 'Generate AI HTML'
-      this.generateBtnEl.disabled = this.aiGenerating
+      this.generateBtnEl.disabled = !aiMode || this.aiGenerating
+      this.generateBtnEl.style.display = aiMode ? '' : 'none'
     }
 
-    if (this.copyRenderedBtnEl) this.copyRenderedBtnEl.disabled = !hasCurrentAi
-    if (this.copyHtmlBtnEl) this.copyHtmlBtnEl.disabled = !hasCurrentAi
+    if (this.copyRenderedBtnEl) this.copyRenderedBtnEl.disabled = !hasCurrentOutput
+    if (this.copyHtmlBtnEl) this.copyHtmlBtnEl.disabled = !hasCurrentOutput
   }
 
   private refresh(force: boolean) {
+    this.syncModeSelector()
+    const mode = this.getRenderMode()
     const source = this.getActiveMarkdownSource()
     if (!source) {
       this.lastCurrentSourceSignature = null
-      this.updateActionButtons(false)
+      this.lastOutputHtml = null
+      this.updateActionButtons(mode, false)
       this.setStatus('No active note', 'error')
+      const emptyStateDescription =
+        mode === 'ai'
+          ? 'Open a Markdown note first, then generate AI HTML.'
+          : 'Open a Markdown note first, then the fixed template will render automatically.'
       const html = buildWeChatPreviewSrcDoc(
-        renderHintPanel('No active note', 'Open a Markdown note first, then generate AI HTML.'),
+        renderHintPanel('No active note', emptyStateDescription),
       )
       if (force || html !== this.lastFrameHtml) {
         this.lastFrameHtml = html
@@ -464,6 +551,15 @@ export class WeChatPreviewView extends ItemView {
       return
     }
 
+    if (mode === 'fixed-template') {
+      this.refreshFixedTemplateMode(source, force)
+      return
+    }
+
+    this.refreshAiMode(source, force)
+  }
+
+  private refreshAiMode(source: { markdown: string; filePath?: string }, force: boolean) {
     const aiSource = this.buildAiSource(source.markdown, source.filePath)
     this.lastCurrentSourceSignature = aiSource.signature
 
@@ -490,7 +586,8 @@ export class WeChatPreviewView extends ItemView {
 
     const currentAiHtml = this.getCurrentAiHtml(aiSource.signature)
     const hasCurrentAi = !!currentAiHtml
-    this.updateActionButtons(hasCurrentAi)
+    this.lastOutputHtml = currentAiHtml
+    this.updateActionButtons('ai', hasCurrentAi)
 
     const frameContent = hasCurrentAi
       ? buildWeChatPreviewSrcDoc(currentAiHtml)
@@ -520,6 +617,70 @@ export class WeChatPreviewView extends ItemView {
     this.setStatus(`${base} · Ready to generate`, 'neutral')
   }
 
+  private refreshFixedTemplateMode(source: { markdown: string; filePath?: string }, force: boolean) {
+    this.clearAutoGenerateTimer()
+    this.lastAutoGenerateEnabled = false
+
+    const fixedSource = this.buildFixedTemplateSource(source.markdown, source.filePath)
+    this.lastCurrentSourceSignature = fixedSource.signature
+
+    try {
+      if (this.lastFixedSourceSignature !== fixedSource.signature || !this.lastFixedHtml) {
+        this.lastFixedHtml = renderMarkdownWithFixedTemplate({
+          templateId: fixedSource.templateId,
+          title: fixedSource.title,
+          markdown: fixedSource.markdown,
+          customCss: fixedSource.customCss,
+        })
+        this.lastFixedSourceSignature = fixedSource.signature
+      }
+    } catch (error) {
+      this.lastOutputHtml = null
+      this.updateActionButtons('fixed-template', false)
+      const frameContent = buildWeChatPreviewSrcDoc(
+        renderHintPanel(
+          'Template rendering failed',
+          'Check your custom CSS syntax and markdown content, then try again.',
+          stringifyError(error),
+        ),
+      )
+      if (force || frameContent !== this.lastFrameHtml) {
+        this.lastFrameHtml = frameContent
+        if (this.iframeEl) this.iframeEl.srcdoc = frameContent
+      }
+      const base = source.filePath ?? 'Current note'
+      this.setStatus(`${base} · Template rendering failed`, 'error')
+      return
+    }
+
+    const fixedHtml = this.lastFixedSourceSignature === fixedSource.signature ? this.lastFixedHtml : null
+    const hasCurrentFixed = !!fixedHtml
+    this.lastOutputHtml = fixedHtml
+    this.updateActionButtons('fixed-template', hasCurrentFixed)
+
+    const frameContent = hasCurrentFixed
+      ? buildWeChatPreviewSrcDoc(fixedHtml)
+      : buildWeChatPreviewSrcDoc(
+          renderHintPanel(
+            'Template rendering unavailable',
+            'No fixed template output is currently available for this note.',
+            source.filePath ?? 'Current note',
+          ),
+        )
+    if (force || frameContent !== this.lastFrameHtml) {
+      this.lastFrameHtml = frameContent
+      if (this.iframeEl) this.iframeEl.srcdoc = frameContent
+    }
+
+    const base = source.filePath ?? 'Current note'
+    if (hasCurrentFixed) {
+      const templateName = getFixedTemplateById(fixedSource.templateId).label
+      this.setStatus(`${base} · ${templateName} ready`, 'success')
+      return
+    }
+    this.setStatus(`${base} · Template not ready`, 'neutral')
+  }
+
   private setStatus(text: string, tone: StatusTone) {
     if (!this.statusEl) return
     this.statusEl.textContent = text
@@ -531,17 +692,20 @@ export class WeChatPreviewView extends ItemView {
   }
 
   private async handleCopyHtml() {
-    const source = this.getActiveMarkdownSource()
-    const currentAiHtml =
-      source && this.getCurrentAiHtml(this.buildAiSource(source.markdown, source.filePath).signature)
-    if (!currentAiHtml) {
-      this.setStatus('No AI HTML to copy', 'error')
-      new Notice('No AI HTML for current note. Generate first.', 4000)
+    const outputHtml = this.lastOutputHtml
+    const mode = this.getRenderMode()
+    if (!outputHtml) {
+      this.setStatus('No output HTML to copy', 'error')
+      if (mode === 'ai') {
+        new Notice('No AI HTML for current note. Generate first.', 4000)
+      } else {
+        new Notice('No fixed-template HTML available for current note.', 4000)
+      }
       return
     }
     this.setStatus('Copying HTML...', 'loading')
     try {
-      await copyText(sanitizeWeChatPasteHtml(currentAiHtml))
+      await copyText(sanitizeWeChatPasteHtml(outputHtml))
       this.setStatus('Copied HTML', 'success')
     } catch (err) {
       this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
@@ -549,17 +713,20 @@ export class WeChatPreviewView extends ItemView {
   }
 
   private async handleCopyRendered() {
-    const source = this.getActiveMarkdownSource()
-    const currentAiHtml =
-      source && this.getCurrentAiHtml(this.buildAiSource(source.markdown, source.filePath).signature)
-    if (!currentAiHtml) {
-      this.setStatus('No AI HTML to copy', 'error')
-      new Notice('No AI HTML for current note. Generate first.', 4000)
+    const outputHtml = this.lastOutputHtml
+    const mode = this.getRenderMode()
+    if (!outputHtml) {
+      this.setStatus('No output HTML to copy', 'error')
+      if (mode === 'ai') {
+        new Notice('No AI HTML for current note. Generate first.', 4000)
+      } else {
+        new Notice('No fixed-template HTML available for current note.', 4000)
+      }
       return
     }
     this.setStatus('Copying rendered content...', 'loading')
     try {
-      await copyRichHtml(sanitizeWeChatPasteHtml(currentAiHtml))
+      await copyRichHtml(sanitizeWeChatPasteHtml(outputHtml))
       this.setStatus('Copied rendered content', 'success')
     } catch (err) {
       this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')

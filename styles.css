@@ -25,6 +25,11 @@
   min-height: 30px;
 }
 
+.wechatPreviewModeSelect {
+  min-height: 30px;
+  min-width: 140px;
+}
+
 .wechatPreviewPrimaryBtn {
   font-weight: 600;
 }

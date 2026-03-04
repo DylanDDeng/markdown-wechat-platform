@@ -1,8 +1,14 @@
 import { App, PluginSettingTab, Setting } from 'obsidian'
 import type WeChatPreviewPlugin from '../main'
 import { promptThemes } from '../core/aiPrompts'
+import { fixedTemplates, type FixedTemplateId } from '../templates/fixedTemplates'
+
+export type RenderMode = 'ai' | 'fixed-template'
 
 export type WeChatPreviewSettings = {
+  renderMode: RenderMode
+  fixedTemplateId: FixedTemplateId
+  customCss: string
   openRouterApiKey: string
   openRouterModel: string
   promptThemeId: string
@@ -11,6 +17,9 @@ export type WeChatPreviewSettings = {
 }
 
 export const DEFAULT_SETTINGS: WeChatPreviewSettings = {
+  renderMode: 'ai',
+  fixedTemplateId: 'business-blue',
+  customCss: '',
   openRouterApiKey: '',
   openRouterModel: 'google/gemini-3.1-pro-preview',
   promptThemeId: 'digital-tool-guide',
@@ -33,8 +42,50 @@ export class WeChatPreviewSettingTab extends PluginSettingTab {
     containerEl.createEl('h2', { text: 'WeChat Preview' })
 
     new Setting(containerEl)
+      .setName('Render mode')
+      .setDesc('Switch between AI generation and local fixed template rendering.')
+      .addDropdown((dropdown) => {
+        dropdown.addOption('ai', 'AI mode')
+        dropdown.addOption('fixed-template', 'Fixed Template mode')
+        dropdown.setValue(this.plugin.settings.renderMode)
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.renderMode = (value as RenderMode) || 'ai'
+          await this.plugin.saveSettings()
+          this.display()
+        })
+      })
+
+    new Setting(containerEl)
+      .setName('Fixed template')
+      .setDesc('Template used in Fixed Template mode.')
+      .addDropdown((dropdown) => {
+        fixedTemplates.forEach((template) => dropdown.addOption(template.id, template.label))
+        dropdown.setValue(this.plugin.settings.fixedTemplateId)
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.fixedTemplateId = (value as FixedTemplateId) || 'business-blue'
+          await this.plugin.saveSettings()
+        })
+      })
+
+    new Setting(containerEl)
+      .setName('Custom CSS')
+      .setDesc('Optional CSS injected into fixed-template HTML output.')
+      .addTextArea((text) => {
+        text.setPlaceholder('.my-title { letter-spacing: 0.2px; }')
+        text.setValue(this.plugin.settings.customCss)
+        text.inputEl.rows = 6
+        text.inputEl.cols = 40
+        text.onChange(async (value) => {
+          this.plugin.settings.customCss = value
+          await this.plugin.saveSettings()
+        })
+      })
+
+    containerEl.createEl('h3', { text: 'AI Mode (OpenRouter)' })
+
+    new Setting(containerEl)
       .setName('OpenRouter API Key')
-      .setDesc('Used to generate HTML via OpenRouter. Stored in local plugin settings.')
+      .setDesc('Used only in AI mode. Stored in local plugin settings.')
       .addText((text) => {
         text.inputEl.type = 'password'
         text.setPlaceholder('sk-or-v1-...')
@@ -71,7 +122,7 @@ export class WeChatPreviewSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Auto-generate AI HTML')
-      .setDesc('Trigger on note edit (debounce) and note switch.')
+      .setDesc('Used only in AI mode. Trigger on note edit (debounce) and note switch.')
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.autoGenerateEnabled)
         toggle.onChange(async (value) => {
