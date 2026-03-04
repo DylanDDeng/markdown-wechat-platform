@@ -226,7 +226,7 @@ export function renderMarkdownWithFixedTemplate(params: RenderFixedTemplateParam
   const blocks = parseMarkdown(params.markdown)
   const body = renderBlockNodes(blocks, styles)
   const title = params.title.trim()
-  const titleBlock = title.length
+  const titleBlock = template.renderTitle && title.length
     ? `<header style="${styles.titleWrap}"><h1 style="${styles.title}">${escapeHtml(title)}</h1></header>`
     : ''
   const customCss = sanitizeCustomCss(params.customCss)

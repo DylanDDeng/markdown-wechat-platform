@@ -4,6 +4,7 @@ export type FixedTemplateDefinition = {
   id: FixedTemplateId
   label: string
   description: string
+  renderTitle: boolean
   palette: {
     background: string
     text: string
@@ -26,6 +27,7 @@ export const fixedTemplates: FixedTemplateDefinition[] = [
     id: 'business-blue',
     label: 'Business Blue',
     description: 'Professional blue theme with clean visual hierarchy.',
+    renderTitle: false,
     palette: {
       background: '#ffffff',
       text: '#1f2d3d',
@@ -43,6 +45,7 @@ export const fixedTemplates: FixedTemplateDefinition[] = [
     id: 'brand-red',
     label: 'Brand Red',
     description: 'Warm red theme suitable for storytelling and branding articles.',
+    renderTitle: false,
     palette: {
       background: '#ffffff',
       text: '#1a1a1a',
