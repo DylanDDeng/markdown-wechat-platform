@@ -137,12 +137,12 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
     : isJournal
       ? `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border:1px solid ${palette.codeBorder};border-radius:10px;box-shadow:0 8px 18px rgba(146,114,58,0.18);overflow-x:auto;`
       : isCyberNeon
-        ? `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border-left:4px solid ${palette.codeBorder};border-radius:0 12px 12px 0;box-shadow:0 0 20px rgba(0,255,136,0.15),inset 0 0 20px rgba(0,212,255,0.05);overflow-x:auto;`
+        ? `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border-left:4px solid ${palette.codeBorder};border-radius:0 12px 12px 0;box-shadow:0 0 20px rgba(0,255,136,0.15),inset 0 0 20px rgba(0,255,136,0.05);overflow-x:auto;`
         : isPaperCraft
           ? `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border-left:3px dashed ${palette.codeBorder};border-radius:0 8px 8px 0;overflow-x:auto;`
           : `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border:1px solid ${palette.codeBorder};border-radius:12px;overflow-x:auto;`
 
-  const inlineCodeBackground = isMinimal ? '#1f2937' : isCyberNeon ? '#1a1a2e' : palette.accentSoft
+  const inlineCodeBackground = isMinimal ? '#1f2937' : isCyberNeon ? '#0a1410' : palette.accentSoft
   const inlineCodeColor = isMinimal ? '#f3f4f6' : isCyberNeon ? '#00ff88' : palette.accent
 
   return {
@@ -153,7 +153,7 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
     };border:${isCyberNeon ? '2px' : '1px'} solid ${palette.border};border-radius:${
       isJournal ? '18px' : isEditorial ? '10px' : isCyberNeon ? '16px' : isPaperCraft ? '12px' : '16px'
     };${
-      isCyberNeon ? 'box-shadow:0 0 30px rgba(0,212,255,0.15),inset 0 0 60px rgba(0,212,255,0.03);' : 
+      isCyberNeon ? 'box-shadow:0 0 30px rgba(0,255,136,0.12),inset 0 0 60px rgba(0,255,136,0.03);' : 
       isPaperCraft ? 'box-shadow:0 4px 12px rgba(0,0,0,0.08),0 1px 3px rgba(0,0,0,0.05);' : ''
     }`,
     titleWrap: `margin:0 0 24px;padding:0 0 14px;border-bottom:1px solid ${palette.border};${
@@ -169,7 +169,7 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
         : isMinimal
           ? `margin:30px 0 12px;display:flex;align-items:baseline;gap:10px;line-height:1.35;font-size:24px;font-weight:700;color:${palette.accent};${headingFont}`
           : isCyberNeon
-            ? `margin:34px 0 16px;line-height:1.3;font-size:26px;font-weight:700;color:${palette.accent};text-shadow:0 0 20px rgba(0,212,255,0.5);${headingFont}`
+            ? `margin:34px 0 16px;line-height:1.3;font-size:26px;font-weight:700;color:${palette.accent};text-shadow:0 0 20px rgba(0,255,136,0.5);${headingFont}`
             : isPaperCraft
               ? `margin:30px 0 14px;line-height:1.4;font-size:26px;font-weight:700;color:${palette.accent};border-bottom:2px solid ${palette.accent};padding-bottom:8px;${headingFont}`
               : `${headingCommon}font-size:26px;`,
@@ -178,7 +178,7 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
         : isMinimal
           ? `margin:30px 0 12px;display:flex;align-items:baseline;gap:10px;line-height:1.4;font-size:21px;font-weight:700;color:${palette.accent};${headingFont}`
           : isCyberNeon
-            ? `margin:28px 0 12px;display:inline-block;padding:10px 20px;background:linear-gradient(135deg,${palette.accentSoft},#1a1a3e);border-left:4px solid ${palette.accent};border-radius:0 24px 24px 0;font-size:20px;font-weight:700;color:${palette.accent};text-shadow:0 0 10px rgba(0,212,255,0.3);${headingFont}`
+            ? `margin:28px 0 12px;display:inline-block;padding:10px 20px;background:linear-gradient(135deg,${palette.accentSoft},#0d2a1a);border-left:4px solid ${palette.accent};border-radius:0 24px 24px 0;font-size:20px;font-weight:700;color:${palette.accent};text-shadow:0 0 10px rgba(0,255,136,0.3);${headingFont}`
             : isPaperCraft
               ? `margin:26px 0 12px;display:inline-block;padding:10px 18px;background:linear-gradient(135deg,#fff9c4,#fff59d);border-left:4px solid ${palette.accent};border-radius:4px 16px 16px 4px;box-shadow:2px 3px 8px rgba(0,0,0,0.1);font-size:20px;font-weight:700;color:#5d4a1a;transform:rotate(-1deg);${headingFont}`
               : `${headingCommon}font-size:22px;padding-left:10px;border-left:4px solid ${palette.accent};`,
@@ -201,7 +201,7 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
     codeBlockInner:
       `font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:13px;line-height:1.75;color:${palette.codeText};white-space:pre;`,
     strong: isCyberNeon
-      ? `color:${palette.accent};font-weight:700;text-shadow:0 0 8px rgba(0,212,255,0.4);`
+      ? `color:${palette.accent};font-weight:700;text-shadow:0 0 8px rgba(0,255,136,0.4);`
       : isPaperCraft
         ? `background:linear-gradient(180deg,transparent 60%,rgba(255,235,59,0.4) 60%);font-weight:700;color:${palette.text};`
         : `color:${isEditorial ? palette.text : palette.accent};font-weight:700;`,
@@ -210,7 +210,7 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
     link: `color:${isEditorial ? palette.text : palette.accent};text-decoration:underline;text-underline-offset:2px;`,
     blank: 'margin:0;height:14px;line-height:14px;',
     blockquote: isCyberNeon
-      ? `margin:22px 0;padding:14px 18px;border-left:3px solid ${palette.quoteBorder};background:${palette.quoteBackground};border-radius:0 12px 12px 0;box-shadow:0 0 15px rgba(168,85,247,0.2),inset 0 0 20px rgba(168,85,247,0.05);`
+      ? `margin:22px 0;padding:14px 18px;border-left:3px solid ${palette.quoteBorder};background:${palette.quoteBackground};border-radius:0 12px 12px 0;box-shadow:0 0 15px rgba(0,204,106,0.2),inset 0 0 20px rgba(0,204,106,0.05);`
       : isPaperCraft
         ? `margin:22px 0;padding:14px 18px 14px 44px;border-left:none;background:${palette.quoteBackground};border-radius:12px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,0.06);`
         : `margin:22px 0;padding:12px 14px 12px 16px;border-left:4px solid ${palette.quoteBorder};background:${palette.quoteBackground};border-radius:${isEditorial ? '6px' : '0 10px 10px 0'};`,
