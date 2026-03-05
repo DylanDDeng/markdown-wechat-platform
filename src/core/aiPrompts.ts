@@ -287,11 +287,22 @@ const EDITORIAL_MAGAZINE_SYSTEM_PROMPT = `# 角色
 
 ## 7. 代码区
 \`\`\`html
-<pre style="margin:22px 0; padding:14px 16px; background:#f8f9fb; border:1px solid #e5e7eb; border-radius:8px; overflow-x:auto;">
-  <code style="font-family:'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace; font-size:13px; line-height:1.75; color:#111827; white-space:pre;">npm run dev</code>
-</pre>
+<div style="margin:22px 0; background:#ffffff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; box-shadow:0 8px 20px rgba(15,23,42,0.08);">
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#f8fafc; border-bottom:1px solid #e5e7eb;">
+    <div style="display:inline-flex; align-items:center; gap:7px;">
+      <span style="width:10px; height:10px; border-radius:50%; background:#ff5f56;"></span>
+      <span style="width:10px; height:10px; border-radius:50%; background:#ffbd2e;"></span>
+      <span style="width:10px; height:10px; border-radius:50%; background:#27c93f;"></span>
+    </div>
+    <span style="font-family:'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace; font-size:11px; letter-spacing:0.8px; color:#64748b; text-transform:uppercase;">JS</span>
+  </div>
+  <pre style="margin:0; padding:14px 16px; background:#ffffff; overflow-x:auto;">
+    <code style="font-family:'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace; font-size:13px; line-height:1.75; color:#111827; white-space:pre;">npm run dev</code>
+  </pre>
+</div>
 \`\`\`
 规则：
+- 必须使用 VSCode 白色主题代码框 + Mac traffic lights 顶栏（三色圆点）
 - 代码块必须支持横向滚动
 - 保留原始缩进与换行
 - 禁止深色整块代码背景
