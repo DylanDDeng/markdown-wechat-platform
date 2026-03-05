@@ -27,6 +27,14 @@ type TemplateStyles = {
   listItem: string
   hr: string
   inlineCode: string
+  codeBlockUseMacChrome: boolean
+  codeBlockContainer: string
+  codeBlockHeader: string
+  codeBlockDots: string
+  codeBlockDotRed: string
+  codeBlockDotYellow: string
+  codeBlockDotGreen: string
+  codeBlockLang: string
   codeBlock: string
   codeBlockInner: string
   strong: string
@@ -109,6 +117,7 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
   const isEditorial = variant === 'editorial'
   const isCyberNeon = variant === 'cyber-neon'
   const isPaperCraft = variant === 'paper-craft'
+  const isBrandRed = template.id === 'brand-red'
 
   const bodyFont = isEditorial
     ? "-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif"
@@ -140,7 +149,9 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
         ? `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border-left:4px solid ${palette.codeBorder};border-radius:0 12px 12px 0;overflow-x:auto;`
         : isPaperCraft
           ? `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border-left:3px dashed ${palette.codeBorder};border-radius:0 8px 8px 0;overflow-x:auto;`
-          : `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border:1px solid ${palette.codeBorder};border-radius:12px;overflow-x:auto;`
+          : isBrandRed
+            ? `margin:0;padding:14px 16px;background:#ffffff;border:0;border-radius:0;overflow-x:auto;`
+            : `margin:22px 0;padding:14px 16px;background:${palette.codeBackground};border:1px solid ${palette.codeBorder};border-radius:12px;overflow-x:auto;`
 
   const inlineCodeBackground = isMinimal ? '#1f2937' : isCyberNeon ? '#0a1410' : palette.accentSoft
   const inlineCodeColor = isMinimal ? '#f3f4f6' : isCyberNeon ? '#00ff88' : palette.accent
@@ -196,6 +207,20 @@ function buildTemplateStyles(template: FixedTemplateDefinition): TemplateStyles 
     listItem: `margin:0 0 8px;line-height:1.85;`,
     hr: `margin:26px 0;border:0;border-top:1px solid ${palette.border};`,
     inlineCode: `font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:13px;padding:1px 6px;border-radius:5px;background:${inlineCodeBackground};color:${inlineCodeColor};border:1px solid ${palette.border};`,
+    codeBlockUseMacChrome: isBrandRed,
+    codeBlockContainer: isBrandRed
+      ? 'margin:22px 0;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;box-shadow:0 8px 20px rgba(15,23,42,0.08);'
+      : '',
+    codeBlockHeader: isBrandRed
+      ? 'display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e5e7eb;'
+      : '',
+    codeBlockDots: isBrandRed ? 'display:inline-flex;align-items:center;gap:7px;' : '',
+    codeBlockDotRed: isBrandRed ? 'width:10px;height:10px;border-radius:50%;background:#ff5f56;' : '',
+    codeBlockDotYellow: isBrandRed ? 'width:10px;height:10px;border-radius:50%;background:#ffbd2e;' : '',
+    codeBlockDotGreen: isBrandRed ? 'width:10px;height:10px;border-radius:50%;background:#27c93f;' : '',
+    codeBlockLang: isBrandRed
+      ? "font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:11px;line-height:1.2;letter-spacing:0.8px;color:#64748b;text-transform:uppercase;"
+      : '',
     codeBlock,
     codeBlockInner:
       `font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:13px;line-height:1.75;color:${palette.codeText};white-space:pre;`,
@@ -312,6 +337,18 @@ function renderBlockNodes(
         case 'paragraph':
           return renderParagraph(node.children, styles)
         case 'codeblock':
+          if (styles.codeBlockUseMacChrome) {
+            const langLabel = (node.lang?.trim() || 'code').toUpperCase()
+            return `<section style="${styles.codeBlockContainer}"><header style="${
+              styles.codeBlockHeader
+            }"><span style="${styles.codeBlockDots}"><span style="${styles.codeBlockDotRed}"></span><span style="${
+              styles.codeBlockDotYellow
+            }"></span><span style="${styles.codeBlockDotGreen}"></span></span><span style="${
+              styles.codeBlockLang
+            }">${escapeHtml(langLabel)}</span></header><pre style="${styles.codeBlock}"><code style="${
+              styles.codeBlockInner
+            }">${escapeHtml(node.value)}</code></pre></section>`
+          }
           return `<pre style="${styles.codeBlock}"><code style="${styles.codeBlockInner}">${escapeHtml(
             node.value,
           )}</code></pre>`
