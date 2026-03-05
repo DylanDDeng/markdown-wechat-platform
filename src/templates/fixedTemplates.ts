@@ -4,8 +4,10 @@ export type FixedTemplateId =
   | 'minimal-card'
   | 'journal'
   | 'editorial'
+  | 'cyber-neon'
+  | 'paper-craft'
 
-export type FixedTemplateVariant = 'classic' | 'minimal-card' | 'journal' | 'editorial'
+export type FixedTemplateVariant = 'classic' | 'minimal-card' | 'journal' | 'editorial' | 'cyber-neon' | 'paper-craft'
 
 export type FixedTemplateDefinition = {
   id: FixedTemplateId
@@ -130,6 +132,46 @@ export const fixedTemplates: FixedTemplateDefinition[] = [
       codeBackground: '#f7f7f7',
       codeBorder: '#d9d9d9',
       codeText: '#1f2937',
+    },
+  },
+  {
+    id: 'cyber-neon',
+    label: 'Cyber Neon',
+    description: 'Dark cyberpunk theme with neon glow effects and gradient accents.',
+    variant: 'cyber-neon',
+    renderTitle: false,
+    palette: {
+      background: '#0a0a0f',
+      text: '#e0e0e8',
+      muted: '#6b6b80',
+      accent: '#00d4ff',
+      accentSoft: '#1a1a2e',
+      border: '#2d2d44',
+      quoteBorder: '#a855f7',
+      quoteBackground: '#151520',
+      codeBackground: '#12121a',
+      codeBorder: '#00ff88',
+      codeText: '#00ff88',
+    },
+  },
+  {
+    id: 'paper-craft',
+    label: 'Paper Craft',
+    description: 'Handcrafted paper style with sticky notes and highlighter effects.',
+    variant: 'paper-craft',
+    renderTitle: false,
+    palette: {
+      background: '#faf8f3',
+      text: '#2c2c2c',
+      muted: '#7a7a7a',
+      accent: '#d4a017',
+      accentSoft: '#fff9e6',
+      border: '#e0d5c0',
+      quoteBorder: '#d4a017',
+      quoteBackground: '#fffbeb',
+      codeBackground: '#f5f5f0',
+      codeBorder: '#c0c0b8',
+      codeText: '#4a4a4a',
     },
   },
 ]
