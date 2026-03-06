@@ -1,11 +1,11 @@
-import { ItemView, MarkdownView, Notice, type WorkspaceLeaf, setIcon } from 'obsidian'
+import { ItemView, MarkdownView, Menu, Notice, type WorkspaceLeaf, setIcon } from 'obsidian'
 import type WeChatPreviewPlugin from '../main'
 import { stripFrontmatter } from '../core/markdown'
 import { buildWeChatPreviewSrcDoc } from '../core/preview'
 import { copyRichHtml, copyText } from '../core/clipboard'
-import { buildUserPrompt, getPromptThemeById } from '../core/aiPrompts'
+import { buildUserPrompt, getPromptThemeById, promptThemes } from '../core/aiPrompts'
 import { generateHtmlWithOpenRouter } from '../core/openrouter'
-import { getFixedTemplateById, type FixedTemplateId } from '../templates/fixedTemplates'
+import { fixedTemplates, getFixedTemplateById, type FixedTemplateId } from '../templates/fixedTemplates'
 import { renderMarkdownWithFixedTemplate } from '../templates/renderFixedTemplate'
 import type { RenderMode } from './SettingsTab'
 
@@ -192,10 +192,16 @@ export class WeChatPreviewView extends ItemView {
 
   private iframeEl: HTMLIFrameElement | null = null
   private statusEl: HTMLElement | null = null
-  private modeSelectEl: HTMLSelectElement | null = null
+  private aiModeBtnEl: HTMLButtonElement | null = null
+  private fixedTemplateModeBtnEl: HTMLButtonElement | null = null
+  private contextLabelEl: HTMLElement | null = null
+  private contextSelectEl: HTMLSelectElement | null = null
   private generateBtnEl: HTMLButtonElement | null = null
-  private copyRenderedBtnEl: HTMLButtonElement | null = null
-  private copyHtmlBtnEl: HTMLButtonElement | null = null
+  private copyBtnEl: HTMLButtonElement | null = null
+  private copyMenuBtnEl: HTMLButtonElement | null = null
+  private settingsBtnEl: HTMLButtonElement | null = null
+  private contextSelectMode: RenderMode | null = null
+  private copyMode: 'rendered' | 'html' = 'rendered'
 
   private lastFrameHtml: string | null = null
   private lastOutputHtml: string | null = null
@@ -239,37 +245,76 @@ export class WeChatPreviewView extends ItemView {
     this.contentEl.addClass('wechatPreviewRoot')
 
     const toolbar = this.contentEl.createDiv({ cls: 'wechatPreviewToolbar' })
-    const actions = toolbar.createDiv({ cls: 'wechatPreviewActions' })
+    const mainRow = toolbar.createDiv({ cls: 'wechatPreviewToolbarMain' })
 
-    this.modeSelectEl = actions.createEl('select', { cls: 'wechatPreviewModeSelect' })
-    this.modeSelectEl.appendChild(new Option('AI Mode', 'ai'))
-    this.modeSelectEl.appendChild(new Option('Fixed Template', 'fixed-template'))
-    this.modeSelectEl.value = this.plugin.settings.renderMode
-    this.modeSelectEl.onchange = () => {
-      const value = (this.modeSelectEl?.value as RenderMode | undefined) ?? 'ai'
-      void this.handleModeChange(value)
+    const modeGroup = mainRow.createDiv({ cls: 'wechatPreviewModeSegment' })
+    this.aiModeBtnEl = modeGroup.createEl('button', {
+      text: 'AI 排版',
+      cls: 'wechatPreviewSegmentBtn',
+    })
+    this.aiModeBtnEl.onclick = () => {
+      void this.handleModeChange('ai')
     }
 
+    this.fixedTemplateModeBtnEl = modeGroup.createEl('button', {
+      text: '固定模板',
+      cls: 'wechatPreviewSegmentBtn',
+    })
+    this.fixedTemplateModeBtnEl.onclick = () => {
+      void this.handleModeChange('fixed-template')
+    }
+
+    const contextGroup = mainRow.createDiv({ cls: 'wechatPreviewContextGroup' })
+    this.contextLabelEl = contextGroup.createDiv({
+      cls: 'wechatPreviewContextLabel',
+      text: 'AI 主题',
+    })
+    this.contextSelectEl = contextGroup.createEl('select', {
+      cls: 'wechatPreviewContextSelect',
+    })
+    this.contextSelectEl.onchange = () => {
+      void this.handleContextSelectionChange()
+    }
+
+    const actions = mainRow.createDiv({ cls: 'wechatPreviewPrimaryActions' })
     this.generateBtnEl = actions.createEl('button', {
-      text: 'Generate AI HTML',
+      text: '生成',
       cls: 'wechatPreviewPrimaryBtn',
     })
     this.generateBtnEl.onclick = () => {
       void this.requestGenerateAi()
     }
 
-    this.copyRenderedBtnEl = actions.createEl('button', { text: 'Copy Rendered' })
-    this.copyRenderedBtnEl.onclick = () => {
-      void this.handleCopyRendered()
+    const copyGroup = actions.createDiv({ cls: 'wechatPreviewCopyGroup' })
+    this.copyBtnEl = copyGroup.createEl('button', {
+      text: this.getCopyButtonText(),
+      cls: 'wechatPreviewCopyBtn',
+    })
+    this.copyBtnEl.onclick = () => {
+      void this.handlePrimaryCopy()
     }
 
-    this.copyHtmlBtnEl = actions.createEl('button', { text: 'Copy HTML' })
-    this.copyHtmlBtnEl.onclick = () => {
-      void this.handleCopyHtml()
+    this.copyMenuBtnEl = copyGroup.createEl('button', {
+      cls: 'wechatPreviewIconBtn wechatPreviewCopyMenuBtn',
+      attr: { 'aria-label': '选择复制方式' },
+    })
+    setIcon(this.copyMenuBtnEl, 'chevron-down')
+    this.copyMenuBtnEl.title = '选择复制方式'
+    this.copyMenuBtnEl.onclick = (evt) => {
+      this.openCopyMenu(evt)
     }
 
-    toolbar.createDiv({ cls: 'spacer' })
-    this.statusEl = toolbar.createDiv({ cls: 'wechatPreviewStatus', text: '' })
+    this.settingsBtnEl = actions.createEl('button', {
+      text: '高级设置',
+      cls: 'wechatPreviewSecondaryBtn',
+    })
+    this.settingsBtnEl.title = '打开插件高级设置'
+    this.settingsBtnEl.onclick = () => {
+      this.openAdvancedSettings()
+    }
+
+    const metaRow = toolbar.createDiv({ cls: 'wechatPreviewToolbarMeta' })
+    this.statusEl = metaRow.createDiv({ cls: 'wechatPreviewStatus', text: '' })
 
     const frameWrap = this.contentEl.createDiv({ cls: 'wechatPreviewFrameWrap' })
     this.iframeEl = frameWrap.createEl('iframe', {
@@ -290,10 +335,15 @@ export class WeChatPreviewView extends ItemView {
     this.clearAutoGenerateTimer()
     this.iframeEl = null
     this.statusEl = null
-    this.modeSelectEl = null
+    this.aiModeBtnEl = null
+    this.fixedTemplateModeBtnEl = null
+    this.contextLabelEl = null
+    this.contextSelectEl = null
     this.generateBtnEl = null
-    this.copyRenderedBtnEl = null
-    this.copyHtmlBtnEl = null
+    this.copyBtnEl = null
+    this.copyMenuBtnEl = null
+    this.settingsBtnEl = null
+    this.contextSelectMode = null
     this.contentEl.removeClass('wechatPreviewRoot')
   }
 
@@ -314,15 +364,15 @@ export class WeChatPreviewView extends ItemView {
 
   async requestGenerateAi(): Promise<void> {
     if (this.getRenderMode() !== 'ai') {
-      this.setStatus('Switch to AI mode to generate', 'error')
-      new Notice('Current mode is Fixed Template. Switch to AI mode first.', 4000)
+      this.setStatus('当前为固定模板模式，请先切换到 AI 排版。', 'error')
+      new Notice('当前是固定模板模式，请先切换到 AI 排版。', 4000)
       return
     }
     if (this.aiGenerating) return
     const source = this.getActiveMarkdownSource()
     if (!source) {
-      this.setStatus('No active note', 'error')
-      new Notice('No active Markdown note', 4000)
+      this.setStatus('没有可生成的 Markdown 笔记。', 'error')
+      new Notice('请先打开一个 Markdown 笔记。', 4000)
       return
     }
     const aiSource = this.buildAiSource(source.markdown, source.filePath)
@@ -401,11 +451,124 @@ export class WeChatPreviewView extends ItemView {
     return this.plugin.settings.openRouterModel.trim() || DEFAULT_OPENROUTER_MODEL
   }
 
-  private syncModeSelector() {
+  private syncToolbarControls() {
     const mode = this.getRenderMode()
-    if (this.modeSelectEl && this.modeSelectEl.value !== mode) {
-      this.modeSelectEl.value = mode
+
+    if (this.aiModeBtnEl) {
+      const active = mode === 'ai'
+      this.aiModeBtnEl.classList.toggle('is-active', active)
+      this.aiModeBtnEl.setAttribute('aria-pressed', String(active))
     }
+
+    if (this.fixedTemplateModeBtnEl) {
+      const active = mode === 'fixed-template'
+      this.fixedTemplateModeBtnEl.classList.toggle('is-active', active)
+      this.fixedTemplateModeBtnEl.setAttribute('aria-pressed', String(active))
+    }
+
+    this.syncContextSelector(mode)
+  }
+
+  private syncContextSelector(mode: RenderMode) {
+    if (!this.contextLabelEl || !this.contextSelectEl) return
+
+    if (this.contextSelectMode !== mode) {
+      this.contextSelectEl.innerHTML = ''
+      if (mode === 'ai') {
+        this.contextLabelEl.textContent = 'AI 主题'
+        promptThemes.forEach((theme) => {
+          this.contextSelectEl?.appendChild(new Option(theme.label, theme.id))
+        })
+      } else {
+        this.contextLabelEl.textContent = '固定模板'
+        fixedTemplates.forEach((template) => {
+          this.contextSelectEl?.appendChild(new Option(template.label, template.id))
+        })
+      }
+      this.contextSelectMode = mode
+    }
+
+    const value = mode === 'ai' ? this.plugin.settings.promptThemeId : this.plugin.settings.fixedTemplateId
+    if (this.contextSelectEl.value !== value) {
+      this.contextSelectEl.value = value
+    }
+  }
+
+  private async handleContextSelectionChange(): Promise<void> {
+    const mode = this.getRenderMode()
+    const nextValue = this.contextSelectEl?.value
+    if (!nextValue) return
+
+    if (mode === 'ai') {
+      if (this.plugin.settings.promptThemeId === nextValue) return
+      this.plugin.settings.promptThemeId = nextValue
+    } else {
+      if (this.plugin.settings.fixedTemplateId === nextValue) return
+      this.plugin.settings.fixedTemplateId = nextValue as FixedTemplateId
+    }
+
+    await this.plugin.saveSettings()
+  }
+
+  private getCopyButtonText(): string {
+    return this.copyMode === 'html' ? '复制 HTML' : '复制渲染结果'
+  }
+
+  private syncCopyButton() {
+    if (this.copyBtnEl) this.copyBtnEl.textContent = this.getCopyButtonText()
+  }
+
+  private openCopyMenu(evt: MouseEvent) {
+    const menu = new Menu()
+    menu.addItem((item) => {
+      item
+        .setTitle('复制渲染结果')
+        .setIcon('copy')
+        .setChecked(this.copyMode === 'rendered')
+        .onClick(() => {
+          this.copyMode = 'rendered'
+          this.syncCopyButton()
+          void this.handlePrimaryCopy()
+        })
+    })
+    menu.addItem((item) => {
+      item
+        .setTitle('复制 HTML')
+        .setIcon('code')
+        .setChecked(this.copyMode === 'html')
+        .onClick(() => {
+          this.copyMode = 'html'
+          this.syncCopyButton()
+          void this.handlePrimaryCopy()
+        })
+    })
+    menu.showAtMouseEvent(evt)
+  }
+
+  private async handlePrimaryCopy(): Promise<void> {
+    if (this.copyMode === 'html') {
+      await this.handleCopyHtml()
+      return
+    }
+    await this.handleCopyRendered()
+  }
+
+  private openAdvancedSettings() {
+    const setting = (this.app as unknown as {
+      setting?: { open?: () => void; openTabById?: (id: string) => void }
+    }).setting
+
+    if (!setting?.open) {
+      new Notice('请在 Obsidian 设置中手动打开插件配置。', 4000)
+      return
+    }
+
+    setting.open()
+    setting.openTabById?.(this.plugin.manifest.id)
+  }
+
+  private getSourceLabel(filePath?: string): string {
+    return filePath ?? '当前笔记'
   }
 
   private scheduleAutoGenerate(source: AiSource) {
@@ -421,9 +584,9 @@ export class WeChatPreviewView extends ItemView {
     const isManual = trigger === 'manual'
     const apiKey = this.plugin.settings.openRouterApiKey.trim()
     if (!apiKey.length) {
-      this.lastAiError = 'OpenRouter API key is not set'
+      this.lastAiError = '尚未配置 OpenRouter API Key'
       this.lastAiErrorSignature = source.signature
-      if (isManual) new Notice('OpenRouter API key is not set', 5000)
+      if (isManual) new Notice('请先在高级设置中填写 OpenRouter API Key。', 5000)
       this.refresh(true)
       return
     }
@@ -452,12 +615,12 @@ export class WeChatPreviewView extends ItemView {
       this.lastAiSourceSignature = source.signature
       this.lastAiError = null
       this.lastAiErrorSignature = null
-      if (isManual) new Notice('AI HTML generated', 3000)
+      if (isManual) new Notice('AI HTML 已生成。', 3000)
     } catch (error) {
       if (requestSeq !== this.aiRequestSeq) return
       this.lastAiError = stringifyError(error)
       this.lastAiErrorSignature = source.signature
-      if (isManual) new Notice(`AI generation failed: ${this.lastAiError}`, 7000)
+      if (isManual) new Notice(`AI 生成失败：${this.lastAiError}`, 7000)
     } finally {
       if (requestSeq === this.aiRequestSeq) {
         this.aiGenerating = false
@@ -479,70 +642,84 @@ export class WeChatPreviewView extends ItemView {
   ): string {
     if (this.aiGenerating) {
       return renderHintPanel(
-        'Generating AI HTML...',
-        'The model is formatting your current note. Please wait.',
-        source.filePath ?? 'Current note',
+        '正在生成 AI 排版',
+        '模型正在整理当前笔记，请稍等片刻。',
+        this.getSourceLabel(source.filePath),
       )
     }
 
     if (this.lastAiError && this.lastAiErrorSignature === sourceSignature) {
       return renderHintPanel(
-        'AI generation failed',
-        'Please check API key, model availability, and network, then click Generate AI HTML again.',
+        'AI 生成失败',
+        '请检查 API Key、模型可用性和网络连接，然后重新生成。',
         this.lastAiError,
+      )
+    }
+
+    if (!this.plugin.settings.openRouterApiKey.trim().length) {
+      return renderHintPanel(
+        '先完成 AI 设置',
+        '请点击右上角的高级设置，填写 OpenRouter API Key 和模型，然后再生成。',
+        this.getSourceLabel(source.filePath),
       )
     }
 
     if (autoGenerateEnabled) {
       return renderHintPanel(
-        'Auto generation is enabled',
-        'When you stop typing, AI generation starts automatically. You can also click Generate AI HTML manually.',
-        source.filePath ?? 'Current note',
+        '已开启自动生成',
+        '停止输入后会自动生成，你也可以手动点击生成立即刷新结果。',
+        this.getSourceLabel(source.filePath),
       )
     }
 
     if (this.lastAiHtml && this.lastAiSourceSignature && this.lastAiSourceSignature !== sourceSignature) {
       return renderHintPanel(
-        'Content changed',
-        'The previous AI result is out of date for this note. Click Generate AI HTML to refresh.',
-        source.filePath ?? 'Current note',
+        '内容已更新',
+        '当前笔记和上一次 AI 结果不一致，建议重新生成。',
+        this.getSourceLabel(source.filePath),
       )
     }
 
     return renderHintPanel(
-      'Ready to generate',
-      'Click Generate AI HTML to produce WeChat-ready HTML for the current note.',
-      source.filePath ?? 'Current note',
+      '准备就绪',
+      '点击生成，即可得到适合公众号粘贴的 HTML 结果。',
+      this.getSourceLabel(source.filePath),
     )
   }
 
-  private updateActionButtons(mode: RenderMode, hasCurrentOutput: boolean) {
+  private updateActionButtons(
+    mode: RenderMode,
+    hasCurrentOutput: boolean,
+    options?: { hasStaleOutput?: boolean; hasAnyOutput?: boolean },
+  ) {
     const aiMode = mode === 'ai'
     if (this.generateBtnEl) {
-      this.generateBtnEl.textContent = this.aiGenerating ? 'Generating...' : 'Generate AI HTML'
+      const shouldRegenerate = !!options?.hasStaleOutput || !!options?.hasAnyOutput
+      this.generateBtnEl.textContent = this.aiGenerating ? '生成中...' : shouldRegenerate ? '重新生成' : '生成'
       this.generateBtnEl.disabled = !aiMode || this.aiGenerating
       this.generateBtnEl.style.display = aiMode ? '' : 'none'
     }
 
-    if (this.copyRenderedBtnEl) this.copyRenderedBtnEl.disabled = !hasCurrentOutput
-    if (this.copyHtmlBtnEl) this.copyHtmlBtnEl.disabled = !hasCurrentOutput
+    this.syncCopyButton()
+    if (this.copyBtnEl) this.copyBtnEl.disabled = !hasCurrentOutput
+    if (this.copyMenuBtnEl) this.copyMenuBtnEl.disabled = !hasCurrentOutput
   }
 
   private refresh(force: boolean) {
-    this.syncModeSelector()
+    this.syncToolbarControls()
     const mode = this.getRenderMode()
     const source = this.getActiveMarkdownSource()
     if (!source) {
       this.lastCurrentSourceSignature = null
       this.lastOutputHtml = null
       this.updateActionButtons(mode, false)
-      this.setStatus('No active note', 'error')
+      this.setStatus('没有打开中的 Markdown 笔记。', 'error')
       const emptyStateDescription =
         mode === 'ai'
-          ? 'Open a Markdown note first, then generate AI HTML.'
-          : 'Open a Markdown note first, then the fixed template will render automatically.'
+          ? '先打开一个 Markdown 笔记，再在这里生成公众号 HTML。'
+          : '先打开一个 Markdown 笔记，固定模板会在这里自动渲染。'
       const html = buildWeChatPreviewSrcDoc(
-        renderHintPanel('No active note', emptyStateDescription),
+        renderHintPanel('还没有可预览的笔记', emptyStateDescription),
       )
       if (force || html !== this.lastFrameHtml) {
         this.lastFrameHtml = html
@@ -562,9 +739,13 @@ export class WeChatPreviewView extends ItemView {
   private refreshAiMode(source: { markdown: string; filePath?: string }, force: boolean) {
     const aiSource = this.buildAiSource(source.markdown, source.filePath)
     this.lastCurrentSourceSignature = aiSource.signature
+    const sourceLabel = this.getSourceLabel(source.filePath)
+    const themeLabel = getPromptThemeById(aiSource.themeId).label
+    const apiKeyConfigured = this.plugin.settings.openRouterApiKey.trim().length > 0
 
     const autoGenerateEnabled = this.plugin.settings.autoGenerateEnabled
-    if (autoGenerateEnabled) {
+    const autoGenerateActive = autoGenerateEnabled && apiKeyConfigured
+    if (autoGenerateActive) {
       const filePathChanged = this.lastObservedFilePath !== (source.filePath ?? '')
       const autoJustEnabled = this.lastAutoGenerateEnabled !== true
       if (
@@ -586,8 +767,13 @@ export class WeChatPreviewView extends ItemView {
 
     const currentAiHtml = this.getCurrentAiHtml(aiSource.signature)
     const hasCurrentAi = !!currentAiHtml
+    const hasStaleAi =
+      !!this.lastAiHtml && !!this.lastAiSourceSignature && this.lastAiSourceSignature !== aiSource.signature
     this.lastOutputHtml = currentAiHtml
-    this.updateActionButtons('ai', hasCurrentAi)
+    this.updateActionButtons('ai', hasCurrentAi, {
+      hasStaleOutput: hasStaleAi,
+      hasAnyOutput: !!this.lastAiHtml,
+    })
 
     const frameContent = hasCurrentAi
       ? buildWeChatPreviewSrcDoc(currentAiHtml)
@@ -597,24 +783,31 @@ export class WeChatPreviewView extends ItemView {
       if (this.iframeEl) this.iframeEl.srcdoc = frameContent
     }
 
-    const base = source.filePath ?? 'Current note'
     if (this.aiGenerating) {
-      this.setStatus(`${base} · Generating AI HTML...`, 'loading')
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 生成中...`, 'loading')
       return
     }
     if (hasCurrentAi) {
-      this.setStatus(`${base} · AI HTML ready`, 'success')
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 已生成`, 'success')
       return
     }
     if (this.lastAiError && this.lastAiErrorSignature === aiSource.signature) {
-      this.setStatus(`${base} · AI generation failed`, 'error')
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 生成失败`, 'error')
       return
     }
-    if (autoGenerateEnabled) {
-      this.setStatus(`${base} · Waiting for auto generation`, 'neutral')
+    if (!apiKeyConfigured) {
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 待配置 API Key`, 'error')
       return
     }
-    this.setStatus(`${base} · Ready to generate`, 'neutral')
+    if (autoGenerateActive) {
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 等待自动生成`, 'neutral')
+      return
+    }
+    if (hasStaleAi) {
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 内容已更新，待重新生成`, 'neutral')
+      return
+    }
+    this.setStatus(`${sourceLabel} · ${themeLabel} · 准备就绪`, 'neutral')
   }
 
   private refreshFixedTemplateMode(source: { markdown: string; filePath?: string }, force: boolean) {
@@ -639,8 +832,8 @@ export class WeChatPreviewView extends ItemView {
       this.updateActionButtons('fixed-template', false)
       const frameContent = buildWeChatPreviewSrcDoc(
         renderHintPanel(
-          'Template rendering failed',
-          'Check your custom CSS syntax and markdown content, then try again.',
+          '模板渲染失败',
+          '请检查自定义 CSS 语法和 Markdown 内容后重试。',
           stringifyError(error),
         ),
       )
@@ -648,8 +841,8 @@ export class WeChatPreviewView extends ItemView {
         this.lastFrameHtml = frameContent
         if (this.iframeEl) this.iframeEl.srcdoc = frameContent
       }
-      const base = source.filePath ?? 'Current note'
-      this.setStatus(`${base} · Template rendering failed`, 'error')
+      const sourceLabel = this.getSourceLabel(source.filePath)
+      this.setStatus(`${sourceLabel} · 固定模板 · 渲染失败`, 'error')
       return
     }
 
@@ -662,9 +855,9 @@ export class WeChatPreviewView extends ItemView {
       ? buildWeChatPreviewSrcDoc(fixedHtml)
       : buildWeChatPreviewSrcDoc(
           renderHintPanel(
-            'Template rendering unavailable',
-            'No fixed template output is currently available for this note.',
-            source.filePath ?? 'Current note',
+            '模板结果不可用',
+            '当前笔记还没有可用的固定模板结果。',
+            this.getSourceLabel(source.filePath),
           ),
         )
     if (force || frameContent !== this.lastFrameHtml) {
@@ -672,13 +865,13 @@ export class WeChatPreviewView extends ItemView {
       if (this.iframeEl) this.iframeEl.srcdoc = frameContent
     }
 
-    const base = source.filePath ?? 'Current note'
+    const sourceLabel = this.getSourceLabel(source.filePath)
     if (hasCurrentFixed) {
       const templateName = getFixedTemplateById(fixedSource.templateId).label
-      this.setStatus(`${base} · ${templateName} ready`, 'success')
+      this.setStatus(`${sourceLabel} · ${templateName} · 已渲染`, 'success')
       return
     }
-    this.setStatus(`${base} · Template not ready`, 'neutral')
+    this.setStatus(`${sourceLabel} · 固定模板 · 暂无结果`, 'neutral')
   }
 
   private setStatus(text: string, tone: StatusTone) {
@@ -695,20 +888,20 @@ export class WeChatPreviewView extends ItemView {
     const outputHtml = this.lastOutputHtml
     const mode = this.getRenderMode()
     if (!outputHtml) {
-      this.setStatus('No output HTML to copy', 'error')
+      this.setStatus('当前没有可复制的 HTML。', 'error')
       if (mode === 'ai') {
-        new Notice('No AI HTML for current note. Generate first.', 4000)
+        new Notice('当前笔记还没有 AI HTML，请先生成。', 4000)
       } else {
-        new Notice('No fixed-template HTML available for current note.', 4000)
+        new Notice('当前笔记还没有固定模板结果。', 4000)
       }
       return
     }
-    this.setStatus('Copying HTML...', 'loading')
+    this.setStatus('正在复制 HTML...', 'loading')
     try {
       await copyText(sanitizeWeChatPasteHtml(outputHtml))
-      this.setStatus('Copied HTML', 'success')
+      this.setStatus('已复制 HTML。', 'success')
     } catch (err) {
-      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      this.setStatus(`复制失败：${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }
 
@@ -716,20 +909,20 @@ export class WeChatPreviewView extends ItemView {
     const outputHtml = this.lastOutputHtml
     const mode = this.getRenderMode()
     if (!outputHtml) {
-      this.setStatus('No output HTML to copy', 'error')
+      this.setStatus('当前没有可复制的渲染结果。', 'error')
       if (mode === 'ai') {
-        new Notice('No AI HTML for current note. Generate first.', 4000)
+        new Notice('当前笔记还没有 AI HTML，请先生成。', 4000)
       } else {
-        new Notice('No fixed-template HTML available for current note.', 4000)
+        new Notice('当前笔记还没有固定模板结果。', 4000)
       }
       return
     }
-    this.setStatus('Copying rendered content...', 'loading')
+    this.setStatus('正在复制渲染结果...', 'loading')
     try {
       await copyRichHtml(sanitizeWeChatPasteHtml(outputHtml))
-      this.setStatus('Copied rendered content', 'success')
+      this.setStatus('已复制渲染结果。', 'success')
     } catch (err) {
-      this.setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      this.setStatus(`复制失败：${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }
 }
