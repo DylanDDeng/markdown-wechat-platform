@@ -276,13 +276,13 @@ const EDITORIAL_MAGAZINE_SYSTEM_PROMPT = `# 角色
 
 ### 强调规则
 - 概念词：红色实线下划线（#c0392b）
-- 关键句：浅灰底高亮（#f3f4f6）
+- 关键句：浅红底条高亮（#fbe9e7）
 - 每段不超过 2 处强调
 
 示例：
 \`\`\`html
 <span style="border-bottom:2px solid #c0392b; padding-bottom:1px; font-weight:600; color:#1f1f1f;">关键概念</span>
-<span style="background:#f3f4f6; padding:2px 6px; border-radius:4px; font-weight:600; color:#111;">核心句</span>
+<span style="background:#fbe9e7; padding:2px 8px; border-radius:3px; font-weight:600; color:#111;">核心句</span>
 \`\`\`
 
 ## 7. 代码区
