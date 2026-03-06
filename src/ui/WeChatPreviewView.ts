@@ -3,7 +3,12 @@ import type WeChatPreviewPlugin from '../main'
 import { stripFrontmatter } from '../core/markdown'
 import { buildWeChatPreviewSrcDoc } from '../core/preview'
 import { copyRichHtml, copyText } from '../core/clipboard'
-import { buildUserPrompt, getPromptThemeById, promptThemes } from '../core/aiPrompts'
+import {
+  buildUserPrompt,
+  getPromptThemeById,
+  promptThemes,
+  type OfficialAccountCardPrompt,
+} from '../core/aiPrompts'
 import { generateHtmlWithOpenRouter } from '../core/openrouter'
 import { fixedTemplates, getFixedTemplateById, type FixedTemplateId } from '../templates/fixedTemplates'
 import { renderMarkdownWithFixedTemplate } from '../templates/renderFixedTemplate'
@@ -18,6 +23,7 @@ const REQUIRED_MP_STYLE_TAG =
 type AiSource = {
   title: string
   markdown: string
+  userPrompt: string
   signature: string
   model: string
   themeId: string
@@ -35,6 +41,66 @@ type FixedTemplateSource = {
 }
 
 type StatusTone = 'neutral' | 'loading' | 'success' | 'error'
+
+function hasOfficialAccountCardContent(
+  card: OfficialAccountCardPrompt | undefined,
+): card is OfficialAccountCardPrompt {
+  return !!card?.enabled && card.name.trim().length > 0
+}
+
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function buildBlackRedOfficialAccountCardHtml(card: OfficialAccountCardPrompt): string {
+  const name = escapeHtml(card.name.trim())
+  const tagline = escapeHtml(card.tagline.trim() || '关注后查看最新内容更新')
+  const note = escapeHtml(card.note.trim() || '微信扫码关注，获取后续更新')
+  const avatarUrl = card.avatarUrl.trim()
+  const qrCodeUrl = card.qrCodeUrl.trim()
+
+  const avatarCell = avatarUrl.length
+    ? `<td style="width:56px;vertical-align:top;padding-right:12px;"><img src="${escapeAttr(
+        avatarUrl,
+      )}" style="display:block;width:56px;height:56px;border-radius:50%;border:1px solid #161616;" /></td>`
+    : ''
+
+  const qrCell = qrCodeUrl.length
+    ? `<td style="width:34%;vertical-align:top;text-align:right;"><div style="display:inline-block;padding:8px;background:#ffffff;border:1px solid #e8d8da;"><img src="${escapeAttr(
+        qrCodeUrl,
+      )}" style="display:block;width:96px;height:96px;" /></div></td>`
+    : ''
+
+  const contentWidth = qrCodeUrl.length ? '66%' : '100%'
+
+  return `<section data-wechat-preview-official-account-card="black-red-imprint" style="margin:24px 0 0;padding:16px;background:#fffdfb;border:1px solid #161616;border-radius:10px;box-shadow:0 10px 20px rgba(17,17,17,0.05);"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;"><span style="display:inline-block;padding:2px 8px;background:#8f1d22;color:#fff6f4;font-size:11px;line-height:1.4;letter-spacing:1px;font-weight:700;text-transform:uppercase;">Official Account</span><span style="font-size:12px;line-height:1.6;color:#7a5b5d;">微信扫码关注</span></div><table style="width:100%;border-collapse:collapse;"><tr><td style="width:${contentWidth};vertical-align:top;padding-right:${
+    qrCodeUrl.length ? '12px' : '0'
+  };"><table style="border-collapse:collapse;"><tr>${avatarCell}<td style="vertical-align:top;"><p style="margin:0 0 6px;color:#111111;font-size:17px;line-height:1.4;font-weight:700;">${name}</p><p style="margin:0;color:#5b4b4d;font-size:13px;line-height:1.75;">${tagline}</p></td></tr></table></td>${qrCell}</tr></table><p style="margin:12px 0 0;padding-top:10px;border-top:1px solid #ead9db;color:#7a5b5d;font-size:12px;line-height:1.7;">${note}</p></section>`
+}
+
+function appendOfficialAccountCard(
+  html: string,
+  card: OfficialAccountCardPrompt | undefined,
+  themeId: string,
+): string {
+  if (!hasOfficialAccountCardContent(card)) return html
+  if (themeId !== 'black-red-imprint') return html
+  if (html.includes('data-wechat-preview-official-account-card=')) return html
+
+  const cardHtml = buildBlackRedOfficialAccountCardHtml(card)
+  const mpStyleTagPattern =
+    /<p[^>]*>\s*<mp-style-type[^>]*data-value=(?:"|')3(?:"|')[^>]*><\/mp-style-type>\s*<\/p>/i
+
+  if (mpStyleTagPattern.test(html)) {
+    return html.replace(mpStyleTagPattern, `${cardHtml}\n$&`)
+  }
+
+  return `${html}\n${cardHtml}\n${REQUIRED_MP_STYLE_TAG}`
+}
 
 function sanitizeWeChatPasteHtml(html: string): string {
   try {
@@ -127,8 +193,9 @@ function buildAiSourceSignature(
   themeId: string,
   title: string,
   markdown: string,
+  userPrompt: string,
 ): string {
-  return JSON.stringify({ model, themeId, title, markdown })
+  return JSON.stringify({ model, themeId, title, markdown, userPrompt })
 }
 
 function buildFixedTemplateSourceSignature(
@@ -417,13 +484,20 @@ export class WeChatPreviewView extends ItemView {
     const markdownForPrompt = stripLeadingTitleHeading(markdownWithoutFrontmatter, title)
     const model = this.resolveModelName()
     const promptTheme = getPromptThemeById(this.plugin.settings.promptThemeId)
+    const officialAccountCard = this.getOfficialAccountCardPrompt()
+    const userPrompt = buildUserPrompt({
+      title,
+      markdown: markdownForPrompt,
+      officialAccountCard,
+    })
     return {
       title,
       markdown: markdownForPrompt,
+      userPrompt,
       model,
       themeId: promptTheme.id,
       systemPrompt: promptTheme.systemPrompt,
-      signature: buildAiSourceSignature(model, promptTheme.id, title, markdownForPrompt),
+      signature: buildAiSourceSignature(model, promptTheme.id, title, markdownForPrompt, userPrompt),
       filePath,
     }
   }
@@ -602,16 +676,17 @@ export class WeChatPreviewView extends ItemView {
         apiKey,
         model: source.model,
         systemPrompt: source.systemPrompt,
-        userPrompt: buildUserPrompt({
-          title: source.title,
-          markdown: source.markdown,
-        }),
+        userPrompt: source.userPrompt,
         retries: 1,
       })
 
       if (requestSeq !== this.aiRequestSeq) return
 
-      this.lastAiHtml = normalizeAiHtml(html)
+      this.lastAiHtml = appendOfficialAccountCard(
+        normalizeAiHtml(html),
+        this.getOfficialAccountCardPrompt(),
+        source.themeId,
+      )
       this.lastAiSourceSignature = source.signature
       this.lastAiError = null
       this.lastAiErrorSignature = null
@@ -633,6 +708,17 @@ export class WeChatPreviewView extends ItemView {
     if (!this.lastAiHtml) return null
     if (this.lastAiSourceSignature !== sourceSignature) return null
     return this.lastAiHtml
+  }
+
+  private getOfficialAccountCardPrompt(): OfficialAccountCardPrompt {
+    return {
+      enabled: this.plugin.settings.officialAccountCardEnabled,
+      name: this.plugin.settings.officialAccountName,
+      tagline: this.plugin.settings.officialAccountTagline,
+      avatarUrl: this.plugin.settings.officialAccountAvatarUrl,
+      qrCodeUrl: this.plugin.settings.officialAccountQrCodeUrl,
+      note: this.plugin.settings.officialAccountCardNote,
+    }
   }
 
   private renderStateHtml(
