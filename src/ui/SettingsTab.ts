@@ -77,12 +77,6 @@ export class WeChatPreviewSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h2', { text: 'WeChat Preview 高级设置' })
 
-    const noticeEl = containerEl.createDiv({ cls: 'wechatPreviewSettingsNotice' })
-    noticeEl.createEl('strong', { text: '主流程已移到预览页' })
-    noticeEl.createEl('p', {
-      text: '模式切换、AI 主题选择和固定模板选择，现在都在 WeChat Preview 面板里完成。这里保留 API、模型、自动生成和自定义 CSS 等低频配置。',
-    })
-
     new Setting(containerEl)
       .setName('OpenRouter API Key')
       .setDesc('仅在 AI 排版模式下使用，保存在本地插件设置中。')
