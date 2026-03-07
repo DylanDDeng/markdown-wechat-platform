@@ -70,16 +70,16 @@ function buildBlackRedOfficialAccountCardHtml(card: OfficialAccountCardPrompt): 
     : ''
 
   const qrCell = qrCodeUrl.length
-    ? `<td style="width:34%;vertical-align:top;text-align:right;"><div style="display:inline-block;padding:8px;background:#ffffff;border:1px solid #e8d8da;"><img src="${escapeAttr(
+    ? `<td style="width:34%;vertical-align:top;text-align:right;"><div style="display:inline-block;padding:8px;background:#ffffff;border:1px solid #ececec;"><img src="${escapeAttr(
         qrCodeUrl,
       )}" style="display:block;width:96px;height:96px;" /></div></td>`
     : ''
 
   const contentWidth = qrCodeUrl.length ? '66%' : '100%'
 
-  return `<section data-wechat-preview-official-account-card="black-red-imprint" style="margin:24px 0 0;padding:16px;background:#fffdfb;border:1px solid #161616;border-radius:10px;box-shadow:0 10px 20px rgba(17,17,17,0.05);"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;"><span style="display:inline-block;padding:2px 8px;background:#8f1d22;color:#fff6f4;font-size:11px;line-height:1.4;letter-spacing:1px;font-weight:700;text-transform:uppercase;">Official Account</span><span style="font-size:12px;line-height:1.6;color:#7a5b5d;">微信扫码关注</span></div><table style="width:100%;border-collapse:collapse;"><tr><td style="width:${contentWidth};vertical-align:top;padding-right:${
+  return `<section data-wechat-preview-official-account-card="black-red-imprint" style="margin:28px 0 0;padding:18px 16px;background:linear-gradient(180deg,#fcf7f6 0%,#ffffff 100%);border:1px solid #e8dede;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.65);"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span style="display:inline-block;padding:2px 8px;background:#8f1d22;color:#fff6f4;font-size:11px;line-height:1.4;letter-spacing:1px;font-weight:700;text-transform:uppercase;">Official Account</span><span style="font-size:12px;line-height:1.6;color:#7a5b5d;">微信扫码关注</span></div><div style="width:96px;max-width:100%;height:2px;background:linear-gradient(90deg,#111111 0%,#8f1d22 72%,rgba(143,29,34,0.12) 100%);"></div></div><table style="width:100%;border-collapse:collapse;"><tr><td style="width:${contentWidth};vertical-align:top;padding-right:${
     qrCodeUrl.length ? '12px' : '0'
-  };"><table style="border-collapse:collapse;"><tr>${avatarCell}<td style="vertical-align:top;"><p style="margin:0 0 6px;color:#111111;font-size:17px;line-height:1.4;font-weight:700;">${name}</p><p style="margin:0;color:#5b4b4d;font-size:13px;line-height:1.75;">${tagline}</p></td></tr></table></td>${qrCell}</tr></table><p style="margin:12px 0 0;padding-top:10px;border-top:1px solid #ead9db;color:#7a5b5d;font-size:12px;line-height:1.7;">${note}</p></section>`
+  };"><table style="border-collapse:collapse;"><tr>${avatarCell}<td style="vertical-align:top;"><p style="margin:0 0 6px;color:#111111;font-size:17px;line-height:1.4;font-weight:700;">${name}</p><p style="margin:0;color:#5b4b4d;font-size:13px;line-height:1.75;">${tagline}</p></td></tr></table></td>${qrCell}</tr></table><p style="margin:12px 0 0;padding-top:10px;border-top:1px solid #ececec;color:#7a5b5d;font-size:12px;line-height:1.7;">${note}</p></section>`
 }
 
 function appendOfficialAccountCard(

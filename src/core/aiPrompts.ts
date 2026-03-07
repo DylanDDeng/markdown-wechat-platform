@@ -350,7 +350,7 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
 
 ## 1. 基础容器
 \`\`\`html
-<section style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#fbfaf8;color:#181818;max-width:700px;margin:0 auto;padding:22px 20px;font-size:14px;line-height:1.85;">
+<section style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#ffffff;color:#181818;max-width:700px;margin:0 auto;padding:22px 20px;font-size:14px;line-height:1.85;">
   <!-- 内容区域 -->
 </section>
 \`\`\`
@@ -461,10 +461,13 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
 ### 公众号关注名片（由宿主自动追加）
 若文章启用了公众号名片，宿主会在最终输出末尾自动追加一张自定义关注卡。模型只负责把结尾收束模块做好，不要自行再输出关注名片、二维码区、公众号资料区块。
 \`\`\`html
-<section style="margin:24px 0 0;padding:16px;background:#fffdfb;border:1px solid #161616;border-radius:10px;box-shadow:0 10px 20px rgba(17,17,17,0.05);">
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-    <span style="display:inline-block;padding:2px 8px;background:#8f1d22;color:#fff6f4;font-size:11px;line-height:1.4;letter-spacing:1px;font-weight:700;text-transform:uppercase;">Official Account</span>
-    <span style="font-size:12px;line-height:1.6;color:#7a5b5d;">微信扫码关注</span>
+<section style="margin:28px 0 0;padding:18px 16px;background:linear-gradient(180deg,#fcf7f6 0%,#ffffff 100%);border:1px solid #e8dede;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.65);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="display:inline-block;padding:2px 8px;background:#8f1d22;color:#fff6f4;font-size:11px;line-height:1.4;letter-spacing:1px;font-weight:700;text-transform:uppercase;">Official Account</span>
+      <span style="font-size:12px;line-height:1.6;color:#7a5b5d;">微信扫码关注</span>
+    </div>
+    <div style="width:96px;max-width:100%;height:2px;background:linear-gradient(90deg,#111111 0%,#8f1d22 72%,rgba(143,29,34,0.12) 100%);"></div>
   </div>
   <table style="width:100%;border-collapse:collapse;">
     <tr>
@@ -495,6 +498,9 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
 - 模型不要重复渲染这张卡片
 - 结尾 CTA 文案要与后续的关注卡自然衔接，但不能直接写“见下方名片”
 - 名片将作为全文最后一个可见模块出现
+- 名片允许有自己的浅暖底色或轻微底图，以便和正文区分开
+- 要有细边框感或内收线条感，但不要做成厚重黑框卡片
+- 底色要克制，保持黑红刊刻风的高级感，不要变成大面积彩色信息框
 
 ## 8. 空行与节奏
 - 原文有空行时，必须保留可见的段落节奏
