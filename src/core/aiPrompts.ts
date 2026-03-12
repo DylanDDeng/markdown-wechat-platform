@@ -357,10 +357,12 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
 
 ## 2. 字号规范（硬性要求）
 - 正文：14px，颜色 #222，行高 1.85
+- 正文字间距：1px
 - 二级标题（H2）：18px，字重 700，颜色 #111
 - 三级标题（H3）：16px，字重 700，颜色 #1f1f1f
 - 代码块文字：14px，必须与正文同字号
 - 图注 / 标签 / 编号：12-13px
+- 正文字间距 1px 只用于正文段落、引文、图注、CTA 正文这类连续文本；标题、标签、代码区不要强行套用同样的字距
 
 ## 3. 章节系统（核心）
 使用“深红章节签 + 黑色结构线”的方式组织 H2：
@@ -401,6 +403,17 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
   <p style="margin:0;color:#2a2a2a;font-size:14px;line-height:1.9;">引用 / 判断 / 观点内容</p>
 </blockquote>
 \`\`\`
+
+### 链接样式
+\`\`\`html
+<a href="https://example.com" style="color:#1f1f1f;text-decoration:none;border-bottom:1.5px solid #b3262d;padding-bottom:1px;font-weight:600;">链接文字</a>
+\`\`\`
+规则：
+- 文中如果出现链接，必须把它当作“可点击信息”单独处理，不能混成普通正文
+- 链接默认使用近黑文字 + 深红细下划线，不使用微信默认蓝链视觉
+- 链接可以加粗，但不要加浅红底条、浅黄底条这类高亮背景
+- 同一段里如果链接已经被强调，就不要再叠加其他强调样式
+- 链接文字尽量短而明确，避免整段长句都做成链接
 
 ### 强调系统
 - 核心概念：深红实线下划线
