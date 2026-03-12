@@ -380,16 +380,17 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
 - 结构线使用黑色到深红的渐隐过渡，前实后淡，帮助建立秩序但不要喧宾夺主
 - 标题用词要短、准、有判断，不要空泛鸡汤
 
-## 4. 图片与图注（黑框图版）
+## 4. 图片与图注（轻圆角直出）
 \`\`\`html
-<figure style="margin:24px auto;width:82%;padding:10px;background:#ffffff;border:1px solid #161616;box-shadow:0 12px 24px rgba(17,17,17,0.06);">
-  <img src="图片URL" style="width:100%;display:block;" />
-  <figcaption style="margin-top:10px;padding-top:8px;border-top:1px solid #ead9db;color:#6a4b4d;font-size:13px;line-height:1.6;text-align:left;">图注说明</figcaption>
+<figure style="margin:24px 0;">
+  <img src="图片URL" style="width:100%;display:block;border-radius:6px;" />
+  <figcaption style="margin-top:10px;color:#6a4b4d;font-size:13px;line-height:1.6;text-align:left;">图注说明</figcaption>
 </figure>
 \`\`\`
 规则：
-- 图片统一居中，宽度 80%-82%
-- 使用黑色细边框建立版面力量感
+- 图片不要做缩放，直接按内容区宽度显示，默认宽度 100%
+- 不要给图片额外加外框、底板、阴影、 padding 容器
+- 图片只保留轻微圆角，圆角控制在 4px - 8px
 - 图注不要居中喊口号，要像编辑写的说明文字
 
 ## 5. 引文与重点
