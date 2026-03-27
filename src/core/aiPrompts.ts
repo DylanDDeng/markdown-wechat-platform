@@ -391,14 +391,16 @@ const BLACK_RED_IMPRINT_SYSTEM_PROMPT = `# 角色
 ## 4. 图片与图注（轻圆角直出）
 \`\`\`html
 <figure style="margin:24px 0;">
-  <img src="图片URL" style="width:100%;display:block;border-radius:6px;" />
+  <img src="图片URL" style="width:100%;display:block;border-radius:6px;border:1px solid #d9d0d1;" />
   <figcaption style="margin-top:10px;color:#6a4b4d;font-size:13px;line-height:1.6;text-align:left;">图注说明</figcaption>
 </figure>
 \`\`\`
 规则：
 - 图片不要做缩放，直接按内容区宽度显示，默认宽度 100%
-- 不要给图片额外加外框、底板、阴影、 padding 容器
-- 图片只保留轻微圆角，圆角控制在 4px - 8px
+- 不要给图片额外加底板、阴影、 padding 容器
+- 图片本体保留轻微圆角，圆角控制在 4px - 8px
+- 图片本体增加一层轻边框，建议使用 1px 的浅灰红边线，例如 #d9d0d1
+- 动图（GIF）也遵循同样规则：不缩放、轻圆角、细边框
 - 图注不要居中喊口号，要像编辑写的说明文字
 
 ## 5. 引文与重点
