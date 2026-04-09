@@ -9,7 +9,14 @@ import {
   promptThemes,
   type OfficialAccountCardPrompt,
 } from '../core/aiPrompts'
-import { generateHtmlWithOpenRouter } from '../core/openrouter'
+import {
+  BLACK_RED_COVER_SYSTEM_PROMPT,
+  buildBlackRedCoverPrompt,
+  parseBlackRedCoverData,
+  renderBlackRedCoverPreview,
+  type BlackRedCoverData,
+} from '../core/blackRedCover'
+import { generateHtmlWithOpenRouter, generateTextWithOpenRouter } from '../core/openrouter'
 import { fixedTemplates, getFixedTemplateById, type FixedTemplateId } from '../templates/fixedTemplates'
 import { renderMarkdownWithFixedTemplate } from '../templates/renderFixedTemplate'
 import type { RenderMode } from './SettingsTab'
@@ -38,6 +45,11 @@ type FixedTemplateSource = {
   templateId: FixedTemplateId
   customCss: string
   filePath?: string
+}
+
+type BlackRedCoverSource = {
+  prompt: string
+  signature: string
 }
 
 type StatusTone = 'neutral' | 'loading' | 'success' | 'error'
@@ -198,6 +210,15 @@ function buildAiSourceSignature(
   return JSON.stringify({ model, themeId, title, markdown, userPrompt })
 }
 
+function buildBlackRedCoverSourceSignature(model: string, title: string, markdown: string): string {
+  return JSON.stringify({
+    kind: 'black-red-cover-v1',
+    model,
+    title,
+    markdown,
+  })
+}
+
 function buildFixedTemplateSourceSignature(
   templateId: FixedTemplateId,
   customCss: string,
@@ -280,6 +301,10 @@ export class WeChatPreviewView extends ItemView {
   private lastObservedFilePath: string | null = null
   private lastAiError: string | null = null
   private lastAiErrorSignature: string | null = null
+  private lastBlackRedCover: BlackRedCoverData | null = null
+  private lastBlackRedCoverSourceSignature: string | null = null
+  private lastBlackRedCoverError: string | null = null
+  private lastBlackRedCoverErrorSignature: string | null = null
   private aiRequestSeq = 0
   private aiGenerating = false
   private lastAutoGenerateEnabled: boolean | null = null
@@ -521,6 +546,21 @@ export class WeChatPreviewView extends ItemView {
     }
   }
 
+  private shouldGenerateBlackRedCover(themeId: string): boolean {
+    return themeId === 'black-red-imprint'
+  }
+
+  private buildBlackRedCoverSource(source: AiSource): BlackRedCoverSource {
+    const prompt = buildBlackRedCoverPrompt({
+      title: source.title,
+      markdown: source.markdown,
+    })
+    return {
+      prompt,
+      signature: buildBlackRedCoverSourceSignature(source.model, source.title, source.markdown),
+    }
+  }
+
   private resolveModelName(): string {
     return this.plugin.settings.openRouterModel.trim() || DEFAULT_OPENROUTER_MODEL
   }
@@ -672,24 +712,69 @@ export class WeChatPreviewView extends ItemView {
     this.refresh(true)
 
     try {
-      const html = await generateHtmlWithOpenRouter({
+      const coverSource = this.shouldGenerateBlackRedCover(source.themeId)
+        ? this.buildBlackRedCoverSource(source)
+        : null
+      const htmlPromise = generateHtmlWithOpenRouter({
         apiKey,
         model: source.model,
         systemPrompt: source.systemPrompt,
         userPrompt: source.userPrompt,
         retries: 1,
       })
+      const coverPromise = coverSource
+        ? generateTextWithOpenRouter({
+            apiKey,
+            model: source.model,
+            systemPrompt: BLACK_RED_COVER_SYSTEM_PROMPT,
+            userPrompt: coverSource.prompt,
+            retries: 1,
+          })
+        : Promise.resolve<string | null>(null)
+      const [htmlResult, coverResult] = await Promise.allSettled([htmlPromise, coverPromise] as const)
 
       if (requestSeq !== this.aiRequestSeq) return
 
+      if (htmlResult.status !== 'fulfilled') {
+        throw htmlResult.reason
+      }
+
       this.lastAiHtml = appendOfficialAccountCard(
-        normalizeAiHtml(html),
+        normalizeAiHtml(htmlResult.value),
         this.getOfficialAccountCardPrompt(),
         source.themeId,
       )
       this.lastAiSourceSignature = source.signature
       this.lastAiError = null
       this.lastAiErrorSignature = null
+
+      if (!coverSource) {
+        this.lastBlackRedCover = null
+        this.lastBlackRedCoverSourceSignature = null
+        this.lastBlackRedCoverError = null
+        this.lastBlackRedCoverErrorSignature = null
+      } else if (coverResult.status === 'fulfilled' && typeof coverResult.value === 'string') {
+        const parsedCover = parseBlackRedCoverData(coverResult.value)
+        if (parsedCover) {
+          this.lastBlackRedCover = parsedCover
+          this.lastBlackRedCoverSourceSignature = coverSource.signature
+          this.lastBlackRedCoverError = null
+          this.lastBlackRedCoverErrorSignature = null
+        } else {
+          this.lastBlackRedCover = null
+          this.lastBlackRedCoverSourceSignature = coverSource.signature
+          this.lastBlackRedCoverError = '封面提炼结果格式无效'
+          this.lastBlackRedCoverErrorSignature = coverSource.signature
+        }
+      } else {
+        this.lastBlackRedCover = null
+        this.lastBlackRedCoverSourceSignature = coverSource.signature
+        this.lastBlackRedCoverError = stringifyError(
+          coverResult.status === 'rejected' ? coverResult.reason : '封面提炼失败',
+        )
+        this.lastBlackRedCoverErrorSignature = coverSource.signature
+      }
+
       if (isManual) new Notice('AI HTML 已生成。', 3000)
     } catch (error) {
       if (requestSeq !== this.aiRequestSeq) return
@@ -708,6 +793,19 @@ export class WeChatPreviewView extends ItemView {
     if (!this.lastAiHtml) return null
     if (this.lastAiSourceSignature !== sourceSignature) return null
     return this.lastAiHtml
+  }
+
+  private getCurrentBlackRedCover(source: AiSource): BlackRedCoverData | null {
+    if (!this.shouldGenerateBlackRedCover(source.themeId)) return null
+    const coverSource = this.buildBlackRedCoverSource(source)
+    if (this.lastBlackRedCoverSourceSignature !== coverSource.signature) return null
+    return this.lastBlackRedCover
+  }
+
+  private buildAiPreviewHtml(outputHtml: string, source: AiSource): string {
+    const coverData = this.getCurrentBlackRedCover(source)
+    if (!coverData) return outputHtml
+    return `${renderBlackRedCoverPreview(coverData)}${outputHtml}`
   }
 
   private getOfficialAccountCardPrompt(): OfficialAccountCardPrompt {
@@ -824,6 +922,9 @@ export class WeChatPreviewView extends ItemView {
 
   private refreshAiMode(source: { markdown: string; filePath?: string }, force: boolean) {
     const aiSource = this.buildAiSource(source.markdown, source.filePath)
+    const coverSource = this.shouldGenerateBlackRedCover(aiSource.themeId)
+      ? this.buildBlackRedCoverSource(aiSource)
+      : null
     this.lastCurrentSourceSignature = aiSource.signature
     const sourceLabel = this.getSourceLabel(source.filePath)
     const themeLabel = getPromptThemeById(aiSource.themeId).label
@@ -861,8 +962,13 @@ export class WeChatPreviewView extends ItemView {
       hasAnyOutput: !!this.lastAiHtml,
     })
 
+    const currentCover = this.getCurrentBlackRedCover(aiSource)
+    const coverStale =
+      !!coverSource &&
+      !!this.lastBlackRedCoverSourceSignature &&
+      this.lastBlackRedCoverSourceSignature !== coverSource.signature
     const frameContent = hasCurrentAi
-      ? buildWeChatPreviewSrcDoc(currentAiHtml)
+      ? buildWeChatPreviewSrcDoc(this.buildAiPreviewHtml(currentAiHtml ?? '', aiSource))
       : buildWeChatPreviewSrcDoc(this.renderStateHtml(source, aiSource.signature, autoGenerateEnabled))
     if (force || frameContent !== this.lastFrameHtml) {
       this.lastFrameHtml = frameContent
@@ -874,6 +980,18 @@ export class WeChatPreviewView extends ItemView {
       return
     }
     if (hasCurrentAi) {
+      if (
+        !!coverSource &&
+        this.lastBlackRedCoverError &&
+        this.lastBlackRedCoverErrorSignature === coverSource.signature
+      ) {
+        this.setStatus(`${sourceLabel} · ${themeLabel} · 正文已生成，封面提炼失败`, 'neutral')
+        return
+      }
+      if (currentCover) {
+        this.setStatus(`${sourceLabel} · ${themeLabel} · 正文与封面已生成`, 'success')
+        return
+      }
       this.setStatus(`${sourceLabel} · ${themeLabel} · 已生成`, 'success')
       return
     }
@@ -891,6 +1009,10 @@ export class WeChatPreviewView extends ItemView {
     }
     if (hasStaleAi) {
       this.setStatus(`${sourceLabel} · ${themeLabel} · 内容已更新，待重新生成`, 'neutral')
+      return
+    }
+    if (coverStale) {
+      this.setStatus(`${sourceLabel} · ${themeLabel} · 封面待刷新`, 'neutral')
       return
     }
     this.setStatus(`${sourceLabel} · ${themeLabel} · 准备就绪`, 'neutral')

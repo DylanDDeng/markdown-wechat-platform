@@ -2,7 +2,7 @@ import { requestUrl } from 'obsidian'
 
 const OPENROUTER_CHAT_COMPLETIONS_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
-export type GenerateHtmlWithOpenRouterParams = {
+export type GenerateTextWithOpenRouterParams = {
   apiKey: string
   model: string
   systemPrompt: string
@@ -59,7 +59,7 @@ function shouldRetry(error: unknown): boolean {
 }
 
 async function requestOnce(
-  params: GenerateHtmlWithOpenRouterParams,
+  params: GenerateTextWithOpenRouterParams,
   timeoutMs?: number,
 ): Promise<string> {
   const requestPromise = requestUrl({
@@ -119,8 +119,8 @@ async function requestOnce(
   return content
 }
 
-export async function generateHtmlWithOpenRouter(
-  params: GenerateHtmlWithOpenRouterParams,
+export async function generateTextWithOpenRouter(
+  params: GenerateTextWithOpenRouterParams,
 ): Promise<string> {
   const timeoutMs = params.timeoutMs
   const retries = params.retries ?? 1
@@ -137,4 +137,10 @@ export async function generateHtmlWithOpenRouter(
   }
 
   throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+export async function generateHtmlWithOpenRouter(
+  params: GenerateTextWithOpenRouterParams,
+): Promise<string> {
+  return generateTextWithOpenRouter(params)
 }
