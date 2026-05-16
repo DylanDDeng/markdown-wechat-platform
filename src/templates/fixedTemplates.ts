@@ -1,13 +1,21 @@
 export type FixedTemplateId =
   | 'business-blue'
   | 'brand-red'
+  | 'bubble-update'
   | 'minimal-card'
   | 'journal'
   | 'editorial'
   | 'cyber-neon'
   | 'paper-craft'
 
-export type FixedTemplateVariant = 'classic' | 'minimal-card' | 'journal' | 'editorial' | 'cyber-neon' | 'paper-craft'
+export type FixedTemplateVariant =
+  | 'classic'
+  | 'bubble-update'
+  | 'minimal-card'
+  | 'journal'
+  | 'editorial'
+  | 'cyber-neon'
+  | 'paper-craft'
 
 export type FixedTemplateDefinition = {
   id: FixedTemplateId
@@ -72,6 +80,26 @@ export const fixedTemplates: FixedTemplateDefinition[] = [
       codeBackground: '#fff7f4',
       codeBorder: '#f2d8cf',
       codeText: '#111827',
+    },
+  },
+  {
+    id: 'bubble-update',
+    label: 'Bubble Update',
+    description: 'Loose update-log style with bold prose, red section marks, and square quote blocks.',
+    variant: 'bubble-update',
+    renderTitle: false,
+    palette: {
+      background: '#ffffff',
+      text: '#171717',
+      muted: '#5f6368',
+      accent: '#ff4d55',
+      accentSoft: '#f6f6f6',
+      border: '#ececec',
+      quoteBorder: '#ff4d55',
+      quoteBackground: '#f7f7f7',
+      codeBackground: '#f6f6f6',
+      codeBorder: '#eeeeee',
+      codeText: '#202124',
     },
   },
   {
